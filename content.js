@@ -32,7 +32,7 @@ async function fetchAndUpdatePowerAmount() {
   }
   cachedPowerAmount = amount;
   updatePowerCountBadge(amount);
-  console.log(`[치지직 통나무 파워 자동 획득] 파워 개수: ${amount !== null ? amount : '?'} | 갱신됨: ${now.toLocaleString()}`);
+  console.log(`[치지직 통나무 파워 자동 획득] 개수: ${amount !== null ? amount : '?'} | 갱신됨: ${now.toLocaleString()}`);
   if (claims.length > 0) {
     console.log('[치지직 통나무 파워 자동 획득] claims:', claims);
     // 모든 PUT 요청을 병렬로 보내고, 끝나면 파워 표시 갱신
@@ -76,7 +76,7 @@ function updatePowerCountBadge(amount = cachedPowerAmount) {
   }
   // 파워 개수 표시가 사라진 경우 새로고침처럼 동작
   if (lastPowerNode && !lastPowerNode.parentNode) {
-    console.log('[치지직 통나무 파워 자동 획득] 감지: 파워 표시 사라짐, 전체 재시작');
+    console.log('[치지직 통나무 파워 자동 획득] 감지: 표시 사라짐, 전체 재시작');
     if (typeof powerBadgeDomPoller !== 'undefined' && powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
     if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
     setTimeout(() => {
