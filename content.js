@@ -255,13 +255,16 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   badge.style.color = donationBtn ? getComputedStyle(donationBtn).color : '#fff';
   badge.style.cursor = 'default';
   badge.style.verticalAlign = 'middle';
-  badge.style.opacity = '1'; // 항상 1로 고정
+  badge.style.opacity = '1';
   badge.innerHTML = `${POWER_ICON_SVG}<span style=\"margin-left:4px;vertical-align:middle;\">${amount !== null ? amount : '?'}</span>`;
   if (isInactive) {
     badge.classList.add('chzzk_power_inactive_btn');
-    // 아이콘 색상만 회색으로 변경
+    // 아이콘 색상만 회색으로 변경 (fill까지)
     const svg = badge.querySelector('svg');
-    if (svg) svg.style.color = '#888';
+    if (svg) {
+      svg.style.color = '#888';
+      svg.setAttribute('fill', '#888');
+    }
     // 안내 텍스트 div 생성 및 log_disabled_tooltip 클래스 적용
     const tooltip = document.createElement('div');
     tooltip.textContent = '통나무가 비활성화 된 채널입니다.';
