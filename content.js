@@ -168,6 +168,40 @@ async function fetchAndUpdatePowerAmount() {
   }
 }
 
+// 스타일 삽입 (최초 1회)
+(function injectTooltipStyle() {
+  if (document.getElementById('chzzk_power_inactive_tooltip_style')) return;
+  const style = document.createElement('style');
+  style.id = 'chzzk_power_inactive_tooltip_style';
+  style.textContent = `
+    .log_disabled_tooltip {
+      align-items: center;
+      background-color: var(--color-bg-04, #2e3033);
+      border: 1px solid #0008;
+      border-radius: 6px;
+      bottom: 0;
+      box-shadow: 1px 1px 3px #0008;
+      color: var(--color-content-02, #dfe2ea);
+      display: none;
+      font-size: 12px;
+      font-weight: 400;
+      justify-content: center;
+      line-height: 1.5;
+      padding: 5px 9px;
+      pointer-events: none;
+      position: absolute;
+      right: 30px;
+      text-align: left;
+      white-space: nowrap;
+      z-index: 1000;
+    }
+    .chzzk_power_inactive_btn:hover .log_disabled_tooltip {
+      display: inline-flex;
+    }
+  `;
+  document.head.appendChild(style);
+})();
+
 // 파워 개수 표시/갱신 (isInactive: true면 불투명도 50% 및 안내)
 function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   const toolsDivs = Array.from(document.querySelectorAll('div')).filter(div => Array.from(div.classList).some(cls => cls.startsWith('live_chatting_input_tools__')));
@@ -212,34 +246,18 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   badge.style.color = donationBtn ? getComputedStyle(donationBtn).color : '#fff';
   badge.style.cursor = 'default';
   badge.style.verticalAlign = 'middle';
-  badge.style.opacity = isInactive ? '0.5' : '1';
+  badge.style.opacity = '1'; // 항상 1로 고정
   badge.innerHTML = `${POWER_ICON_SVG}<span style=\"margin-left:4px;vertical-align:middle;\">${amount !== null ? amount : '?'}</span>`;
   if (isInactive) {
-    badge.onmouseenter = function() {
-      let tooltip = document.createElement('div');
-      tooltip.textContent = '통나무가 비활성화 된 채널입니다.';
-      tooltip.style.position = 'fixed';
-      tooltip.style.zIndex = '99999';
-      tooltip.style.background = 'rgba(0,0,0,0.85)';
-      tooltip.style.color = '#fff';
-      tooltip.style.padding = '6px 14px';
-      tooltip.style.borderRadius = '8px';
-      tooltip.style.fontSize = '14px';
-      tooltip.style.pointerEvents = 'none';
-      tooltip.className = 'chzzk_power_inactive_tooltip';
-      document.body.appendChild(tooltip);
-      // 위에 표시
-      const rect = badge.getBoundingClientRect();
-      tooltip.style.left = rect.left + 'px';
-      tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
-      badge._chzzkTooltip = tooltip;
-    };
-    badge.onmouseleave = function() {
-      if (badge._chzzkTooltip) {
-        badge._chzzkTooltip.remove();
-        badge._chzzkTooltip = null;
-      }
-    };
+    badge.classList.add('chzzk_power_inactive_btn');
+    // 아이콘 색상만 회색으로 변경
+    const svg = badge.querySelector('svg');
+    if (svg) svg.style.color = '#888';
+    // 안내 텍스트 div 생성 및 log_disabled_tooltip 클래스 적용
+    const tooltip = document.createElement('div');
+    tooltip.textContent = '통나무가 비활성화 된 채널입니다.';
+    tooltip.className = 'log_disabled_tooltip';
+    badge.appendChild(tooltip);
   }
   if (badgeTarget.tagName === 'BUTTON') {
     badgeTarget.parentNode.insertBefore(badge, badgeTarget.nextSibling);
