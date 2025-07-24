@@ -1,6 +1,7 @@
 console.log('[치지직 통나무 파워 자동 획득] 확장 프로그램 실행됨');
 
 let lastPowerNode = null;
+let isChannelInactive = false; // 비활성화 상태 고정용
 
 // 항상 활성 상태처럼 동작하게 하는 기능 (새롭게 구현)
 (function alwaysActive() {
@@ -118,6 +119,7 @@ async function fetchAndUpdatePowerAmount() {
     active = true;
   }
   if (active === false) {
+    isChannelInactive = true; // 비활성화 상태 고정
     if (claims.length > 0) {
       console.log('[치지직 통나무 파워 자동 획득] active=false, claims 1회만 자동 획득');
       await Promise.all(claims.map(async (claim) => {
@@ -151,6 +153,7 @@ async function fetchAndUpdatePowerAmount() {
     if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
     return;
   }
+  isChannelInactive = false; // 활성화 상태로 복귀 시 해제
   cachedPowerAmount = amount;
   updatePowerCountBadge(amount, false);
   console.log(`[치지직 통나무 파워 자동 획득] 파워 개수: ${amount !== null ? amount : '?'} | 갱신됨: ${now.toLocaleString()}`);
@@ -213,6 +216,8 @@ async function fetchAndUpdatePowerAmount() {
 // 파워 개수 표시/갱신 (isInactive: true면 불투명도 50% 및 안내)
 function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   if (!isLivePage()) return;
+  // 비활성화 상태 고정 시 무조건 비활성화 뱃지
+  if (isChannelInactive) isInactive = true;
   const toolsDivs = Array.from(document.querySelectorAll('div')).filter(div => Array.from(div.classList).some(cls => cls.startsWith('live_chatting_input_tools__')));
   let badgeTarget = null;
   let donationBtn = null;
@@ -280,7 +285,12 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   badge.onclick = function(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (document.querySelector('.live_chatting_popup_donation_layer__sQ9nX')) return;
+    const existPopup = document.querySelector('.live_chatting_popup_donation_layer__sQ9nX');
+    if (existPopup) {
+      existPopup.parentNode && existPopup.parentNode.removeChild(existPopup);
+      window.removeEventListener('keydown', escHandler);
+      return;
+    }
 
     // 채팅 리스트 wrapper 찾기
     const chatWrapper = document.querySelector('div[class^="live_chatting_list_wrapper__"]');
@@ -441,6 +451,7 @@ setInterval(() => {
   const currUrl = location.href;
   if (prevUrl !== currUrl) {
     prevUrl = currUrl;
+    isChannelInactive = false; // URL 바뀌면 비활성화 상태 해제
     console.log('[치지직 통나무 파워 자동 획득] 감지: URL 변경(탭별), 전체 재시작');
     if (isLivePage()) {
       startPowerCountUpdater();
