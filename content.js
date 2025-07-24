@@ -132,12 +132,12 @@ function startPowerBadgeDomPoller() {
   }, 2000);
 }
 
-// 5분마다 파워 개수 갱신
+// 1분마다 파워 개수 갱신
 let powerCountInterval = null;
 function startPowerCountUpdater() {
   fetchAndUpdatePowerAmount();
   if (powerCountInterval) clearInterval(powerCountInterval);
-  powerCountInterval = setInterval(fetchAndUpdatePowerAmount, 5 * 60 * 1000);
+  powerCountInterval = setInterval(fetchAndUpdatePowerAmount, 1 * 60 * 1000);
   startPowerBadgeDomPoller();
 }
 
