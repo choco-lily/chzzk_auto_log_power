@@ -133,13 +133,20 @@ async function fetchAndUpdatePowerAmount() {
           console.log('[치지직 통나무 파워 자동 획득] PUT 요청 에러:', e);
         }
       }));
-      // claims 획득 후 파워 표시 즉시 갱신
-      setTimeout(() => { fetchAndUpdatePowerAmount(); }, 300);
+      setTimeout(() => { fetchAndUpdatePowerAmount(); }, 1000);
     } else {
       console.log('[치지직 통나무 파워 자동 획득] 비활성화 된 채널');
     }
     cachedPowerAmount = amount;
-    updatePowerCountBadge(amount, true);
+    // 4초간 badge 표시 반복 갱신
+    let inactiveBadgeTries = 0;
+    const inactiveBadgeTimer = setInterval(() => {
+      updatePowerCountBadge(amount, true);
+      inactiveBadgeTries++;
+      if (inactiveBadgeTries > 4) {
+        clearInterval(inactiveBadgeTimer);
+      }
+    }, 1000);
     if (typeof powerBadgeDomPoller !== 'undefined' && powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
     if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
     return;
