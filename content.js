@@ -297,6 +297,8 @@ setInterval(() => {
     prevUrl = currUrl;
     console.log('[치지직 통나무 파워 자동 획득] 감지: URL 변경(탭별), 전체 재시작');
     startPowerCountUpdater();
+    // 비활성화 채널이어도 URL 바뀐 직후 1회는 무조건 파워 표시
+    setTimeout(() => { updatePowerCountBadge(); }, 1000);
   }
 }, 1000);
 
