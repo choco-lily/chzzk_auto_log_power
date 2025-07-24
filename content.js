@@ -91,6 +91,7 @@ function getChannelIdFromUrl() {
 // log-power API에서 파워 개수 받아오기 및 갱신
 let cachedPowerAmount = null;
 async function fetchAndUpdatePowerAmount() {
+  if (!isLivePage()) return;
   const channelId = getChannelIdFromUrl();
   if (!channelId) return;
   let amount = null;
@@ -204,6 +205,7 @@ async function fetchAndUpdatePowerAmount() {
 
 // 파워 개수 표시/갱신 (isInactive: true면 불투명도 50% 및 안내)
 function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
+  if (!isLivePage()) return;
   const toolsDivs = Array.from(document.querySelectorAll('div')).filter(div => Array.from(div.classList).some(cls => cls.startsWith('live_chatting_input_tools__')));
   let badgeTarget = null;
   let donationBtn = null;
@@ -280,25 +282,32 @@ function startPowerBadgeDomPoller() {
 // 1분마다 파워 개수 갱신
 let powerCountInterval = null;
 function startPowerCountUpdater() {
+  if (!isLivePage()) return;
   fetchAndUpdatePowerAmount();
   if (powerCountInterval) clearInterval(powerCountInterval);
-  powerCountInterval = setInterval(fetchAndUpdatePowerAmount, 1 * 60 * 1000);
+  powerCountInterval = setInterval(fetchAndUpdatePowerAmount, 5 * 60 * 1000);
   startPowerBadgeDomPoller();
 }
 
 document.addEventListener('DOMContentLoaded', startPowerCountUpdater);
 setTimeout(startPowerCountUpdater, 2000);
 
-// 1초마다 url 변경 감지 및 갱신 (탭별 동작)
+function isLivePage() {
+  return location.pathname.startsWith('/live');
+}
+
+// 1초마다 url 변경 감지 및 갱신 (chzzk.naver.com 전체에서 동작)
 let prevUrl = location.href;
 setInterval(() => {
   const currUrl = location.href;
   if (prevUrl !== currUrl) {
     prevUrl = currUrl;
     console.log('[치지직 통나무 파워 자동 획득] 감지: URL 변경(탭별), 전체 재시작');
-    startPowerCountUpdater();
-    // 비활성화 채널이어도 URL 바뀐 직후 1회는 무조건 파워 표시
-    setTimeout(() => { updatePowerCountBadge(); }, 1000);
+    if (isLivePage()) {
+      startPowerCountUpdater();
+      // 비활성화 채널이어도 URL 바뀐 직후 1회는 무조건 파워 표시
+      setTimeout(() => { updatePowerCountBadge(); }, 1000);
+    }
   }
 }, 1000);
 
