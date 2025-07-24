@@ -72,12 +72,37 @@ let followPowerCheckTimer = null;
           }
         } catch (e) {}
         console.log(`[치지직 통나무 파워 자동 획득] follow 감시: 시도 ${tryCount}, 파워=${amount}, claims=${claims.length}`);
-        if ((amount !== null && amount >= 300) || (claims && claims.length > 0)) {
+        if (claims && claims.length > 0) {
+          // claims가 있으면 먼저 모두 PUT 처리
+          await Promise.all(claims.map(async (claim) => {
+            const claimId = claim.claimId;
+            const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
+            try {
+              await fetch(putUrl, { method: 'PUT', credentials: 'include' });
+            } catch (e) {}
+          }));
+          // claims 처리 후 파워가 반영될 때까지 polling
+          let finalAmount = null;
+          for (let i = 0; i < 10; i++) {
+            try {
+              const res2 = await fetch(`https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`, { credentials: 'include' });
+              const data2 = await res2.json();
+              if (data2 && data2.content && typeof data2.content.amount === 'number') {
+                finalAmount = data2.content.amount;
+                if (finalAmount > 0) break;
+              }
+            } catch (e) {}
+            await new Promise(r => setTimeout(r, 300));
+          }
+          clearInterval(followPowerCheckTimer);
+          followPowerCheckTimer = null;
+          fetchAndUpdatePowerAmount();
+        } else if (amount !== null && amount >= 300) {
           clearInterval(followPowerCheckTimer);
           followPowerCheckTimer = null;
           fetchAndUpdatePowerAmount();
         }
-      }, 1000);
+      }, 300);
     }
     return origFetch.apply(this, arguments);
   };
@@ -135,7 +160,7 @@ async function fetchAndUpdatePowerAmount() {
           console.log('[치지직 통나무 파워 자동 획득] PUT 요청 에러:', e);
         }
       }));
-      setTimeout(() => { fetchAndUpdatePowerAmount(); }, 1000);
+      setTimeout(() => { fetchAndUpdatePowerAmount(); }, 300);
     } else {
       console.log('[치지직 통나무 파워 자동 획득] 비활성화 된 채널');
     }
@@ -148,7 +173,7 @@ async function fetchAndUpdatePowerAmount() {
       if (inactiveBadgeTries > 4) {
         clearInterval(inactiveBadgeTimer);
       }
-    }, 1000);
+    }, 300);
     if (typeof powerBadgeDomPoller !== 'undefined' && powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
     if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
     return;
@@ -425,7 +450,7 @@ function startPowerBadgeDomPoller() {
   powerBadgeDomPoller = setInterval(() => {
     updatePowerCountBadge();
     clickPowerButtonIfExists();
-  }, 1000);
+  }, 300);
 }
 
 // 1분마다 파워 개수 갱신
@@ -456,10 +481,10 @@ setInterval(() => {
     if (isLivePage()) {
       startPowerCountUpdater();
       // 비활성화 채널이어도 URL 바뀐 직후 1회는 무조건 파워 표시
-      setTimeout(() => { updatePowerCountBadge(); }, 1000);
+      setTimeout(() => { updatePowerCountBadge(); }, 300);
     }
   }
-}, 1000);
+}, 300);
 
 // log-power 자동 획득 및 claims 처리
 async function processLogPower(channelId) {
@@ -525,4 +550,4 @@ setInterval(() => {
   if (!badgeExists) {
     updatePowerCountBadge();
   }
-}, 1000); 
+}, 300); 
