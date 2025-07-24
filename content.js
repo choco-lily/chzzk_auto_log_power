@@ -2,10 +2,33 @@ console.log('[치지직 통나무 파워 자동 획득] 확장 프로그램 실�
 
 let lastPowerNode = null;
 
-// 항상 포커스된 것처럼 인식되게
-Object.defineProperty(document, 'hidden', { get: () => false });
-Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
-document.hasFocus = () => true;
+// 항상 활성 상태처럼 동작하게 하는 기능 (새롭게 구현)
+(function alwaysActive() {
+  // document 속성 오버라이드
+  try {
+    Object.defineProperty(document, 'hidden', { get: () => false, configurable: true });
+  } catch (e) {}
+  try {
+    Object.defineProperty(document, 'visibilityState', { get: () => 'visible', configurable: true });
+  } catch (e) {}
+  try {
+    Object.defineProperty(document, 'webkitVisibilityState', { get: () => 'visible', configurable: true });
+  } catch (e) {}
+  try {
+    document.hasFocus = () => true;
+  } catch (e) {}
+  // 이벤트 리스너 무시
+  const blockedEvents = ["visibilitychange", "blur", "webkitvisibilitychange"];
+  const origAddEventListener = EventTarget.prototype.addEventListener;
+  EventTarget.prototype.addEventListener = function(type, listener, options) {
+    if (blockedEvents.includes(type)) return;
+    return origAddEventListener.call(this, type, listener, options);
+  };
+  // 즉시 한 번 visibilitychange 이벤트 발생시켜서 반영
+  try {
+    document.dispatchEvent(new Event('visibilitychange'));
+  } catch (e) {}
+})();
 
 // 스트리머 해시코드 추출
 function getChannelIdFromUrl() {
