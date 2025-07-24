@@ -1,6 +1,12 @@
 console.log('[치지직 통나무 파워 자동 획득] 확장 프로그램 실행됨');
 
 let lastPowerNode = null;
+
+// 항상 포커스된 것처럼 인식되게
+Object.defineProperty(document, 'hidden', { get: () => false });
+Object.defineProperty(document, 'visibilityState', { get: () => 'visible' });
+document.hasFocus = () => true;
+
 // 스트리머 해시코드 추출
 function getChannelIdFromUrl() {
   const match = window.location.pathname.match(/\/live\/([\w-]+)/);
