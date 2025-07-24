@@ -61,22 +61,22 @@ async function fetchAndUpdatePowerAmount() {
   }
   cachedPowerAmount = amount;
   updatePowerCountBadge(amount);
-  console.log(`[치지직 통나무 파워 자동 획득] 개수: ${amount !== null ? amount : '?'} | 갱신됨: ${now.toLocaleString()}`);
+  console.log(`[치지직 통나무 파워 자동 획득] 파워 개수: ${amount !== null ? amount : '?'} | 갱신됨: ${now.toLocaleString()}`);
   if (claims.length > 0) {
     console.log('[치지직 통나무 파워 자동 획득] claims:', claims);
-    // 모든 PUT 요청을 병렬로 보내고, 끝나면 파워 표시 갱신
     await Promise.all(claims.map(async (claim) => {
       const claimId = claim.claimId;
+      const claimType = claim.claimType;
       const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
       try {
         const putRes = await fetch(putUrl, { method: 'PUT', credentials: 'include' });
         const putJson = await putRes.json();
-        console.log('[치지직 통나무 파워 자동 획득] PUT 응답:', putJson);
+        const amountText = putJson.content && typeof putJson.content.amount === 'number' ? putJson.content.amount : '?';
+        console.log(`[치지직 통나무 파워 자동 획득] ${claimType}로 ${amountText}개 획득`);
       } catch (e) {
         console.log('[치지직 통나무 파워 자동 획득] PUT 요청 에러:', e);
       }
     }));
-    // 모든 PUT 후 파워 표시 즉시 갱신
     setTimeout(() => { fetchAndUpdatePowerAmount(); }, 300);
   } else {
     console.log('[치지직 통나무 파워 자동 획득] claims: 없음');
