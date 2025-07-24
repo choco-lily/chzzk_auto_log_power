@@ -540,7 +540,8 @@ function clickPowerButtonIfExists() {
   if (btn && !btn.dataset.chzzkAutoClicked) {
       btn.click();
       btn.dataset.chzzkAutoClicked = 'true';
-    console.log('[치지직 통나무 파워 자동 획득] 자동 클릭: live_chatting_power_button');
+      console.log('[치지직 통나무 파워 자동 획득] 자동 클릭: live_chatting_power_button');
+      fetchAndUpdatePowerAmount();
   }
 }
 
