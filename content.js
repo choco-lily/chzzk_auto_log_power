@@ -44,6 +44,7 @@ async function fetchAndUpdatePowerAmount() {
   let amount = null;
   let claims = [];
   let now = new Date();
+  let active = true;
   try {
     const res = await fetch(`https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`, { credentials: 'include' });
     const data = await res.json();
@@ -54,13 +55,43 @@ async function fetchAndUpdatePowerAmount() {
       if (Array.isArray(data.content.claims)) {
         claims = data.content.claims;
       }
+      if (typeof data.content.active === 'boolean') {
+        active = data.content.active;
+      }
     }
   } catch (e) {
     amount = null;
     claims = [];
+    active = true;
+  }
+  if (active === false) {
+    if (claims.length > 0) {
+      console.log('[치지직 통나무 파워 자동 획득] active=false, claims 1회만 자동 획득');
+      await Promise.all(claims.map(async (claim) => {
+        const claimId = claim.claimId;
+        const claimType = claim.claimType;
+        const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
+        try {
+          const putRes = await fetch(putUrl, { method: 'PUT', credentials: 'include' });
+          const putJson = await putRes.json();
+          const amountText = putJson.content && typeof putJson.content.amount === 'number' ? putJson.content.amount : '?';
+          console.log(`[치지직 통나무 파워 자동 획득] ${claimType}으로 ${amountText}개 획득`);
+        } catch (e) {
+          console.log('[치지직 통나무 파워 자동 획득] PUT 요청 에러:', e);
+        }
+      }));
+    } else {
+      console.log('[치지직 통나무 파워 자동 획득] 비활성화 된 채널');
+    }
+    // 파워 표시는 유지하되, 불투명도 50% 및 마우스 오버 안내 적용
+    cachedPowerAmount = amount;
+    updatePowerCountBadge(amount, true);
+    if (typeof powerBadgeDomPoller !== 'undefined' && powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
+    if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
+    return;
   }
   cachedPowerAmount = amount;
-  updatePowerCountBadge(amount);
+  updatePowerCountBadge(amount, false);
   console.log(`[치지직 통나무 파워 자동 획득] 파워 개수: ${amount !== null ? amount : '?'} | 갱신됨: ${now.toLocaleString()}`);
   if (claims.length > 0) {
     console.log('[치지직 통나무 파워 자동 획득] claims:', claims);
@@ -72,7 +103,7 @@ async function fetchAndUpdatePowerAmount() {
         const putRes = await fetch(putUrl, { method: 'PUT', credentials: 'include' });
         const putJson = await putRes.json();
         const amountText = putJson.content && typeof putJson.content.amount === 'number' ? putJson.content.amount : '?';
-        console.log(`[치지직 통나무 파워 자동 획득] ${claimType}로 ${amountText}개 획득`);
+        console.log(`[치지직 통나무 파워 자동 획득] ${claimType}으로 ${amountText}개 획득`);
       } catch (e) {
         console.log('[치지직 통나무 파워 자동 획득] PUT 요청 에러:', e);
       }
@@ -83,8 +114,8 @@ async function fetchAndUpdatePowerAmount() {
   }
 }
 
-// 파워 개수 표시/갱신
-function updatePowerCountBadge(amount = cachedPowerAmount) {
+// 파워 개수 표시/갱신 (isInactive: true면 불투명도 50% 및 안내)
+function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   const toolsDivs = Array.from(document.querySelectorAll('div')).filter(div => Array.from(div.classList).some(cls => cls.startsWith('live_chatting_input_tools__')));
   let badgeTarget = null;
   let donationBtn = null;
@@ -103,21 +134,7 @@ function updatePowerCountBadge(amount = cachedPowerAmount) {
       }
     }
   }
-  // 파워 개수 표시가 사라진 경우 새로고침처럼 동작
-  if (lastPowerNode && !lastPowerNode.parentNode) {
-    console.log('[치지직 통나무 파워 자동 획득] 감지: 표시 사라짐, 전체 재시작');
-    if (typeof powerBadgeDomPoller !== 'undefined' && powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
-    if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
-    setTimeout(() => {
-      startPowerCountUpdater();
-    }, 100);
-    setTimeout(() => {
-      startPowerCountUpdater();
-    }, 600);
-    return;
-  }
   if (!badgeTarget) return;
-  // 기존 표시 제거
   if (lastPowerNode && lastPowerNode.parentNode) {
     lastPowerNode.parentNode.removeChild(lastPowerNode);
     lastPowerNode = null;
@@ -141,14 +158,41 @@ function updatePowerCountBadge(amount = cachedPowerAmount) {
   badge.style.color = donationBtn ? getComputedStyle(donationBtn).color : '#fff';
   badge.style.cursor = 'default';
   badge.style.verticalAlign = 'middle';
+  badge.style.opacity = isInactive ? '0.5' : '1';
   badge.innerHTML = `${POWER_ICON_SVG}<span style=\"margin-left:4px;vertical-align:middle;\">${amount !== null ? amount : '?'}</span>`;
+  if (isInactive) {
+    badge.onmouseenter = function() {
+      let tooltip = document.createElement('div');
+      tooltip.textContent = '통나무가 비활성화 된 채널입니다.';
+      tooltip.style.position = 'fixed';
+      tooltip.style.zIndex = '99999';
+      tooltip.style.background = 'rgba(0,0,0,0.85)';
+      tooltip.style.color = '#fff';
+      tooltip.style.padding = '6px 14px';
+      tooltip.style.borderRadius = '8px';
+      tooltip.style.fontSize = '14px';
+      tooltip.style.pointerEvents = 'none';
+      tooltip.className = 'chzzk_power_inactive_tooltip';
+      document.body.appendChild(tooltip);
+      // 위에 표시
+      const rect = badge.getBoundingClientRect();
+      tooltip.style.left = rect.left + 'px';
+      tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+      badge._chzzkTooltip = tooltip;
+    };
+    badge.onmouseleave = function() {
+      if (badge._chzzkTooltip) {
+        badge._chzzkTooltip.remove();
+        badge._chzzkTooltip = null;
+      }
+    };
+  }
   if (badgeTarget.tagName === 'BUTTON') {
     badgeTarget.parentNode.insertBefore(badge, badgeTarget.nextSibling);
   } else {
     badgeTarget.appendChild(badge);
   }
   lastPowerNode = badge;
-  lastPowerCount = amount;
 }
 
 // 2초마다 표시 유지 및 버튼 자동 클릭
