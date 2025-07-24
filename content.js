@@ -253,9 +253,15 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   badge.style.fontWeight = 'bold';
   badge.style.fontSize = donationBtn ? getComputedStyle(donationBtn).fontSize : '14px';
   badge.style.color = donationBtn ? getComputedStyle(donationBtn).color : '#fff';
-  badge.style.cursor = 'default';
-  badge.style.verticalAlign = 'middle';
-  badge.style.opacity = '1';
+  badge.style.cursor = 'pointer';
+  badge.addEventListener('mouseenter', () => {
+    badge.style.cursor = 'pointer';
+    badge.style.background = 'rgba(255,255,255,0.08)';
+  });
+  badge.addEventListener('mouseleave', () => {
+    badge.style.cursor = 'pointer';
+    badge.style.background = 'none';
+  });
   badge.innerHTML = `${POWER_ICON_SVG}<span style=\"margin-left:4px;vertical-align:middle;\">${amount !== null ? amount : '?'}</span>`;
   if (isInactive) {
     badge.classList.add('chzzk_power_inactive_btn');
@@ -271,6 +277,129 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
     tooltip.className = 'log_disabled_tooltip';
     badge.appendChild(tooltip);
   }
+  badge.onclick = function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (document.querySelector('.live_chatting_popup_donation_layer__sQ9nX')) return;
+
+    // 채팅 리스트 wrapper 찾기
+    const chatWrapper = document.querySelector('div[class^="live_chatting_list_wrapper__"]');
+    if (!chatWrapper) return;
+
+    // 팝업 레이어 (채팅 리스트 전체 덮음, 반응형)
+    const popupLayer = document.createElement('div');
+    popupLayer.className = 'live_chatting_popup_donation_layer__sQ9nX';
+    popupLayer.setAttribute('role', 'dialog');
+    popupLayer.style.position = 'absolute';
+    popupLayer.style.left = '0';
+    popupLayer.style.top = '0';
+    popupLayer.style.width = '100%';
+    popupLayer.style.height = '100%';
+    popupLayer.style.display = 'flex';
+    popupLayer.style.alignItems = 'center';
+    popupLayer.style.justifyContent = 'center';
+    popupLayer.style.zIndex = '20001';
+    popupLayer.style.background = 'none';
+    popupLayer.style.pointerEvents = 'none';
+
+    // 팝업 컨테이너 (반응형, 내용 없음)
+    const popupContainer = document.createElement('div');
+    popupContainer.className = 'popup_container__Aqx-3 popup_none_shadow__jj3rb live_chatting_popup_donation_container__-Xbda';
+    popupContainer.setAttribute('role', 'alertdialog');
+    popupContainer.setAttribute('aria-modal', 'true');
+    popupContainer.style.width = '92%';
+    popupContainer.style.maxWidth = '486px';
+    popupContainer.style.height = 'auto';
+    popupContainer.style.minHeight = '150px';
+    popupContainer.style.borderRadius = '12px';
+    popupContainer.style.boxSizing = 'border-box';
+    popupContainer.style.pointerEvents = 'auto';
+    popupContainer.style.display = 'flex';
+    popupContainer.style.flexDirection = 'column';
+    popupContainer.style.alignItems = 'center';
+    popupContainer.style.justifyContent = 'center';
+    popupContainer.style.maxHeight = '100%';
+    popupContainer.style.overflow = 'visible';
+    popupContainer.innerHTML = '';
+
+    // 닫기(X) 버튼
+    const action = document.createElement('div');
+    action.className = 'popup_action__KDxfm';
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'button_container__ppWwB button_only_icon__kahz5 button_medium__PoMuw';
+    closeBtn.setAttribute('type', 'button');
+    closeBtn.setAttribute('aria-label', '팝업 닫기');
+    closeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path fill="currentColor" d="M16.6 4.933A1.083 1.083 0 1 0 15.066 3.4L10 8.468 4.933 3.4A1.083 1.083 0 0 0 3.4 4.933L8.468 10 3.4 15.067A1.083 1.083 0 1 0 4.933 16.6L10 11.532l5.067 5.067a1.083 1.083 0 1 0 1.532-1.532L11.532 10l5.067-5.067Z"/></svg>`;
+    closeBtn.onclick = removePopup;
+    action.appendChild(closeBtn);
+    popupContainer.appendChild(action);
+
+    // 로딩 표시
+    const loading = document.createElement('div');
+    loading.style.padding = '32px 0';
+    loading.style.fontSize = '18px';
+    loading.style.color = '#fff';
+    loading.textContent = '불러오는 중...';
+    popupContainer.appendChild(loading);
+
+    popupLayer.appendChild(popupContainer);
+    chatWrapper.appendChild(popupLayer);
+
+    // ESC로 닫기
+    function removePopup() {
+      if (popupLayer.parentNode) popupLayer.parentNode.removeChild(popupLayer);
+      window.removeEventListener('keydown', escHandler);
+    }
+    function escHandler(ev) {
+      if (ev.key === 'Escape') removePopup();
+    }
+    window.addEventListener('keydown', escHandler);
+
+    // API 요청
+    fetch('https://api.chzzk.naver.com/service/v1/log-power/balances', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        loading.remove();
+        const arr = (data && data.content && data.content.data) ? data.content.data : [];
+        // 100 이상만, amount 내림차순 정렬
+        const filtered = arr.filter(x => x.amount >= 100).sort((a, b) => b.amount - a.amount);
+        // HTML 테이블 생성
+        const table = document.createElement('div');
+        table.style.width = '100%';
+        table.style.overflowY = 'auto';
+        table.style.maxHeight = '400px';
+        table.style.display = 'block';
+        const defaultImg = 'https://ssl.pstatic.net/cmstatic/nng/img/img_anonymous_square_gray_opacity2x.png?type=f120_120_na';
+        const totalPower = filtered.reduce((sum, x) => sum + x.amount, 0);
+        table.innerHTML = `
+          <div style="font-weight:bold;font-size:19px;margin-bottom:4px;">누적 파워: ${totalPower.toLocaleString()}</div>
+          <div style="font-weight:bold;font-size:17px;margin-bottom:8px;">채널별 통나무 파워</div>
+          <div style="color:#aaa;font-size:12px;margin-bottom:16px;">100 파워 이상 보유한 채널만 표시합니다.</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            ${filtered.map((x, i) => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;">
+                <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+                  <span style="font-weight:bold;width:24px;text-align:right;color:#2a6aff;font-size:17px;">${i+1}</span>
+                  <img src="${x.channelImageUrl ? x.channelImageUrl : defaultImg}" alt="" style="width:36px;height:36px;border-radius:50%;object-fit:cover;background:#222;">
+                  <span style="font-weight:bold;font-size:15px;white-space:normal;word-break:break-all;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;">${x.channelName}${x.verifiedMark ? ` <img src='https://ssl.pstatic.net/static/nng/glive/resource/p/static/media/icon_official.a53d1555f8f4796d7862.png' alt='인증' style='width:16px;height:16px;vertical-align:middle;margin-left:2px;'>` : ''}</span>
+                </div>
+                <span style="font-weight:bold;font-size:17px;letter-spacing:1px;">${x.amount.toLocaleString()}</span>
+              </div>
+            `).join('')}
+          </div>
+        `;
+        popupContainer.appendChild(table);
+      })
+      .catch(err => {
+        loading.remove();
+        const errDiv = document.createElement('div');
+        errDiv.style.color = '#f66';
+        errDiv.style.fontSize = '16px';
+        errDiv.style.padding = '32px 0';
+        errDiv.textContent = 'API 요청 실패: ' + err;
+        popupContainer.appendChild(errDiv);
+      });
+  }
   if (badgeTarget.tagName === 'BUTTON') {
     badgeTarget.parentNode.insertBefore(badge, badgeTarget.nextSibling);
   } else {
@@ -279,14 +408,14 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
   lastPowerNode = badge;
 }
 
-// 2초마다 표시 유지 및 버튼 자동 클릭
+// 1초마다 표시 유지 및 버튼 자동 클릭
 let powerBadgeDomPoller = null;
 function startPowerBadgeDomPoller() {
   if (powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
   powerBadgeDomPoller = setInterval(() => {
     updatePowerCountBadge();
     clickPowerButtonIfExists();
-  }, 2000);
+  }, 1000);
 }
 
 // 1분마다 파워 개수 갱신
@@ -295,7 +424,7 @@ function startPowerCountUpdater() {
   if (!isLivePage()) return;
   fetchAndUpdatePowerAmount();
   if (powerCountInterval) clearInterval(powerCountInterval);
-  powerCountInterval = setInterval(fetchAndUpdatePowerAmount, 5 * 60 * 1000);
+  powerCountInterval = setInterval(fetchAndUpdatePowerAmount, 1 * 60 * 1000);
   startPowerBadgeDomPoller();
 }
 
@@ -373,8 +502,16 @@ function clickPowerButtonIfExists() {
     b => Array.from(b.classList).some(cls => cls.startsWith('live_chatting_power_button__'))
   );
   if (btn && !btn.dataset.chzzkAutoClicked) {
-    btn.click();
-    btn.dataset.chzzkAutoClicked = 'true';
+      btn.click();
+      btn.dataset.chzzkAutoClicked = 'true';
     console.log('[치지직 통나무 파워 자동 획득] 자동 클릭: live_chatting_power_button');
   }
-} 
+}
+
+// 1초마다 badge 감시 및 복구
+setInterval(() => {
+  const badgeExists = document.querySelector('.chzzk_power_badge');
+  if (!badgeExists) {
+    updatePowerCountBadge();
+  }
+}, 1000); 
