@@ -2,6 +2,7 @@ console.log('[치지직 통나무 파워 자동 획득] 확장 프로그램 실�
 
 let lastPowerNode = null;
 let isChannelInactive = false; // 비활성화 상태 고정용
+let followPowerCheckTimer = null;
 
 // 항상 활성 상태처럼 동작하게 하는 기능 (새롭게 구현)
 (function alwaysActive() {
@@ -31,81 +32,71 @@ let isChannelInactive = false; // 비활성화 상태 고정용
   } catch (e) {}
 })();
 
-// follow API 요청 감지 시 파워 갱신 및 claims 확인
-let followPowerCheckTimer = null;
-(function interceptFollowAPI() {
-  const origFetch = window.fetch;
-  window.fetch = async function(input, init) {
-    let url = '';
-    let method = 'GET';
-    if (typeof input === 'string') {
-      url = input;
-      if (init && init.method) method = init.method.toUpperCase();
-    } else if (input && input.url) {
-      url = input.url;
-      method = input.method ? input.method.toUpperCase() : 'GET';
-    }
-    if (
-      url &&
-      url.match(/\/service\/v1\/channels\/[\w-]+\/follow$/) &&
-      method === 'POST'
-    ) {
-      console.log('[치지직 통나무 파워 자동 획득] 감지: follow POST 요청, 파워 갱신');
-      if (followPowerCheckTimer) clearInterval(followPowerCheckTimer);
-      let tryCount = 0;
-      followPowerCheckTimer = setInterval(async () => {
-        tryCount++;
-        const channelId = getChannelIdFromUrl();
-        if (!channelId) return;
-        let amount = null;
-        let claims = [];
-        try {
-          const res = await fetch(`https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`, { credentials: 'include' });
-          const data = await res.json();
-          if (data && data.content) {
-            if (typeof data.content.amount === 'number') {
-              amount = data.content.amount;
-            }
-            if (Array.isArray(data.content.claims)) {
-              claims = data.content.claims;
-            }
-          }
-        } catch (e) {}
-        console.log(`[치지직 통나무 파워 자동 획득] follow 감시: 시도 ${tryCount}, 파워=${amount}, claims=${claims.length}`);
-        if (claims && claims.length > 0) {
-          // claims가 있으면 먼저 모두 PUT 처리
-          await Promise.all(claims.map(async (claim) => {
-            const claimId = claim.claimId;
-            const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
-            try {
-              await fetch(putUrl, { method: 'PUT', credentials: 'include' });
-            } catch (e) {}
-          }));
-          // claims 처리 후 파워가 반영될 때까지 polling
-          let finalAmount = null;
-          for (let i = 0; i < 10; i++) {
-            try {
-              const res2 = await fetch(`https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`, { credentials: 'include' });
-              const data2 = await res2.json();
-              if (data2 && data2.content && typeof data2.content.amount === 'number') {
-                finalAmount = data2.content.amount;
-                if (finalAmount > 0) break;
-              }
-            } catch (e) {}
-            await new Promise(r => setTimeout(r, 300));
-          }
-          clearInterval(followPowerCheckTimer);
-          followPowerCheckTimer = null;
-          fetchAndUpdatePowerAmount();
-        } else if (amount !== null && amount >= 300) {
-          clearInterval(followPowerCheckTimer);
-          followPowerCheckTimer = null;
-          fetchAndUpdatePowerAmount();
-        }
-      }, 300);
-    }
-    return origFetch.apply(this, arguments);
-  };
+// PerformanceObserver 기반 네트워크 감지
+(function observeNetworkByPerformance() {
+	const followRe = /\/service\/v1\/channels\/[\w-]+\/follow(?:[\/?#].*)?$/; // 쿼리/슬래시 허용
+	function handleUrl(url) {
+		if (!url) return;
+		if (!followRe.test(url)) return;
+		console.log('[치지직 통나무 파워 자동 획득] 감지: follow PerformanceObserver', url);
+		if (!followPowerCheckTimer) {
+			let tryCount = 0;
+			followPowerCheckTimer = setInterval(async () => {
+				tryCount++;
+				const channelId = getChannelIdFromUrl();
+				if (!channelId) return;
+				let amount = null;
+				let claims = [];
+				try {
+					const res = await fetch(`https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`, { credentials: 'include' });
+					const data = await res.json();
+					if (data && data.content) {
+						if (typeof data.content.amount === 'number') amount = data.content.amount;
+						if (Array.isArray(data.content.claims)) claims = data.content.claims;
+					}
+				} catch (e) {}
+				if (claims && claims.length > 0) {
+          console.log(claims)
+					await Promise.all(claims.map(async (claim) => {
+						const claimId = claim.claimId;
+						const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
+						try { await fetch(putUrl, { method: 'PUT', credentials: 'include' }); } catch (e) {}
+					}));
+					for (let i = 0; i < 10; i++) {
+						try {
+							const res2 = await fetch(`https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`, { credentials: 'include' });
+							const data2 = await res2.json();
+							if (data2 && data2.content && typeof data2.content.amount === 'number') {
+								amount = data2.content.amount;
+								if (amount > 0) break;
+							}
+						} catch (e) {}
+						await new Promise(r => setTimeout(r, 300));
+					}
+					clearInterval(followPowerCheckTimer);
+					followPowerCheckTimer = null;
+					fetchAndUpdatePowerAmount();
+				} else if (amount !== null && amount >= 300) {
+					clearInterval(followPowerCheckTimer);
+					followPowerCheckTimer = null;
+					fetchAndUpdatePowerAmount();
+				}
+			}, 300);
+		}
+	}
+	try {
+		const po = new PerformanceObserver((list) => {
+			for (const entry of list.getEntries()) {
+				handleUrl(entry.name);
+			}
+		});
+		po.observe({ type: 'resource', buffered: true });
+		performance.getEntriesByType('resource').forEach((e) => handleUrl(e.name));
+	} catch (e) {
+		setInterval(() => {
+			try { performance.getEntriesByType('resource').forEach((e) => handleUrl(e.name)); } catch (_) {}
+		}, 1000);
+	}
 })();
 
 // 스트리머 해시코드 추출
