@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "치지직 통나무 파워 자동 획득",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "치지직 파워(통나무) 자동 획득 및 파워 개수 표시",
   "content_scripts": [
     {
