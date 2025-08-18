@@ -71,7 +71,7 @@ let followPowerCheckTimer = null;
 								if (amount > 0) break;
 							}
 						} catch (e) {}
-						await new Promise(r => setTimeout(r, 300));
+						await new Promise(r => setTimeout(r, 100));
 					}
 					clearInterval(followPowerCheckTimer);
 					followPowerCheckTimer = null;
@@ -81,7 +81,7 @@ let followPowerCheckTimer = null;
 					followPowerCheckTimer = null;
 					fetchAndUpdatePowerAmount();
 				}
-			}, 300);
+			}, 100);
 		}
 	}
 	try {
@@ -151,7 +151,7 @@ async function fetchAndUpdatePowerAmount() {
           console.log('[치지직 통나무 파워 자동 획득] PUT 요청 에러:', e);
         }
       }));
-      setTimeout(() => { fetchAndUpdatePowerAmount(); }, 300);
+      setTimeout(() => { fetchAndUpdatePowerAmount(); }, 100);
     } else {
       console.log('[치지직 통나무 파워 자동 획득] 비활성화 된 채널');
     }
@@ -164,7 +164,7 @@ async function fetchAndUpdatePowerAmount() {
       if (inactiveBadgeTries > 4) {
         clearInterval(inactiveBadgeTimer);
       }
-    }, 300);
+    }, 100);
     if (typeof powerBadgeDomPoller !== 'undefined' && powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
     if (typeof powerCountInterval !== 'undefined' && powerCountInterval) clearInterval(powerCountInterval);
     return;
@@ -189,7 +189,7 @@ async function fetchAndUpdatePowerAmount() {
       }
     }));
     // claims 획득 후 파워 표시 즉시 갱신
-    setTimeout(() => { fetchAndUpdatePowerAmount(); }, 300);
+    setTimeout(() => { fetchAndUpdatePowerAmount(); }, 100);
   } else {
     console.log('[치지직 통나무 파워 자동 획득] claims: 없음');
   }
@@ -442,7 +442,7 @@ function startPowerBadgeDomPoller() {
   powerBadgeDomPoller = setInterval(() => {
     updatePowerCountBadge();
     clickPowerButtonIfExists();
-  }, 300);
+  }, 100);
 }
 
 // 1분마다 파워 개수 갱신
@@ -473,10 +473,10 @@ setInterval(() => {
     if (isLivePage()) {
       startPowerCountUpdater();
       // 비활성화 채널이어도 URL 바뀐 직후 1회는 무조건 파워 표시
-      setTimeout(() => { updatePowerCountBadge(); }, 300);
+      setTimeout(() => { updatePowerCountBadge(); }, 100);
     }
   }
-}, 300);
+}, 100);
 
 // log-power 자동 획득 및 claims 처리
 async function processLogPower(channelId) {
@@ -542,4 +542,4 @@ setInterval(() => {
   if (!badgeExists) {
     updatePowerCountBadge();
   }
-}, 300); 
+}, 100); 
