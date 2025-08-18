@@ -446,6 +446,7 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
 // 1초마다 표시 유지 및 버튼 자동 클릭
 let powerBadgeDomPoller = null;
 function startPowerBadgeDomPoller() {
+  if (!isLivePage()) return;
   if (powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
   powerBadgeDomPoller = setInterval(() => {
     updatePowerCountBadge();
@@ -537,9 +538,8 @@ function clickPowerButtonIfExists() {
   const btn = Array.from(aside.querySelectorAll('button')).find(
     b => Array.from(b.classList).some(cls => cls.startsWith('live_chatting_power_button__'))
   );
-  if (btn && !btn.dataset.chzzkAutoClicked) {
+  if (btn) {
       btn.click();
-      btn.dataset.chzzkAutoClicked = 'true';
       console.log('[치지직 통나무 파워 자동 획득] 자동 클릭: live_chatting_power_button');
       fetchAndUpdatePowerAmount();
   }
