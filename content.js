@@ -346,33 +346,24 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
     if (!isLivePage()) return;
     // 비활성화 상태 고정 시 무조건 비활성화 뱃지
     if (isChannelInactive) isInactive = true;
-    
-    // badgeToggle 값 확인
+    // badgeToggle 값 확인 후 항상 새로 생성
     chrome.storage.sync.get("badge", (r) => {
         if (r.badge == undefined) {
             r.badge = true;
             chrome.storage.sync.set({ badge: true });
         }
         badgeToggle = r.badge;
-        
-        // 뱃지가 이미 존재하는 경우
+
+        // 기존 뱃지 제거 (백업본처럼 항상 새로 생성)
         if (lastPowerNode && lastPowerNode.parentNode) {
-            // badgeToggle에 따라 보이거나 숨기기
-            lastPowerNode.style.display = badgeToggle ? "inline-flex" : "none";
-            // 파워 개수 업데이트
-            const span = lastPowerNode.querySelector("span");
-            if (span) {
-                span.textContent = amount !== null ? amount : "?";
-            }
-            // 비활성화 상태 업데이트
-            updateBadgeInactiveState(lastPowerNode, isInactive);
-            return;
+            lastPowerNode.parentNode.removeChild(lastPowerNode);
+            lastPowerNode = null;
         }
-        
-        // 뱃지가 없고 badgeToggle이 false인 경우 생성하지 않음
+
+        // 토글이 꺼져 있으면 생성하지 않음
         if (!badgeToggle) return;
-        
-        // 뱃지 생성
+
+        // 새 뱃지 생성
         createPowerBadge(amount, isInactive);
     });
 }
@@ -828,7 +819,7 @@ function clickPowerButtonIfExists() {
 // 1초마다 badge 감시 및 복구
 setInterval(() => {
     const badgeExists = document.querySelector(".chzzk_power_badge");
-    if (!badgeExists && badgeToggle) {
+    if (!badgeExists) {
         updatePowerCountBadge();
     }
 }, 1000);
