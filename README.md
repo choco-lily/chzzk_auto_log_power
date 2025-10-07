@@ -4,7 +4,9 @@
 
 치지직(chzzk.naver.com) 라이브 방송에서 통나무(파워) 자동 획득 및 보유 파워 개수, 채널별 파워 랭킹을 표시해주는 크롬 확장 프로그램입니다.
 
-<iframe src="https://chrome-stats.com/embed/mdammcmmopljkpnokoodkahdhnpijhib/trends" width="400" height="400" frameborder="0"></iframe>
+![Users](https://img.shields.io/chrome-web-store/users/mdammcmmopljkpnokoodkahdhnpijhib)
+![Rating](https://img.shields.io/chrome-web-store/rating/mdammcmmopljkpnokoodkahdhnpijhib)
+![Version](https://img.shields.io/chrome-web-store/v/mdammcmmopljkpnokoodkahdhnpijhib?label=version)
 
 ## 주요 기능
 - 통나무(파워) 자동 클릭 및 획득
