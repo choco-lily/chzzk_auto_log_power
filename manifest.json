@@ -1,16 +1,26 @@
 {
-  "manifest_version": 3,
-  "name": "치지직 통나무 파워 자동 획득",
-  "version": "1.1.0",
-  "description": "치지직 파워(통나무) 자동 획득 및 파워 개수 표시",
-  "content_scripts": [
-    {
-      "matches": [
-        "https://chzzk.naver.com/*",
-        "https://m.chzzk.naver.com/*"
-      ],
-      "js": ["content.js"]
-    }
-  ],
-  "permissions": []
+    "manifest_version": 3,
+    "name": "치지직 통나무 파워 자동 획득",
+    "version": "1.1.0",
+    "description": "치지직 파워(통나무) 자동 획득 및 파워 개수 표시",
+    "content_scripts": [
+        {
+            "matches": [
+                "https://chzzk.naver.com/*",
+                "https://m.chzzk.naver.com/*"
+            ],
+            "js": ["content.js"]
+        }
+    ],
+    "action": {
+        "default_popup": "index.html",
+        "default_icon": "icon.png"
+    },
+    "icons": {
+        "128": "icon.png"
+    },
+    "permissions": [
+        "storage",
+        "activeTab"
+    ]
 }
