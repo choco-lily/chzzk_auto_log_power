@@ -11,10 +11,10 @@
 ![Version](https://img.shields.io/chrome-web-store/v/mdammcmmopljkpnokoodkahdhnpijhib?label=version&style=for-the-badge&labelColor=8a2be2&color=hotpink)
 
 ## 주요 기능
-- 통나무(파워) 자동 클릭 및 획득
+- 통나무 파워 자동 클릭 및 획득
 - 보유 통나무 파워 개수 표시 (채팅 입력창 옆)
 - 채널별 통나무 파워 랭킹 팝업 (아이콘 클릭 시)
-- 확장프로그램 페이지에서 획득 통나무 파워 로그 확인
+- 확장프로그램 페이지에서 획득 통나무 파워 로그 확인 (툴바에서 확장프로그램 클릭 후 로그 보기)
 
 ## 사용 예시
 
