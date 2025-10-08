@@ -20,4 +20,9 @@ onload = (event) => {
             });
         })
     });
+
+    // 로그 보기 버튼 이벤트
+    document.getElementById("viewLogs").addEventListener("click", () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL("log.html") });
+    });
 };

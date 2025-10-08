@@ -7,6 +7,75 @@ let popupCreateRetryTimer = null; // 배지 클릭 시 팝업 생성 재시도 �
 let popupLayerEscHandler = null; // 팝업 ESC 핸들러 참조 저장
 let badgeToggle = false;
 
+// 채널 정보 가져오기 함수
+async function getChannelInfo(channelId) {
+    try {
+        const response = await fetch(
+            `https://api.chzzk.naver.com/service/v1/channels/${channelId}`
+        );
+        const data = await response.json();
+
+        if (data && data.content) {
+            return {
+                channelId: data.content.channelId,
+                channelName: data.content.channelName,
+                channelImageUrl: data.content.channelImageUrl,
+                verifiedMark: data.content.verifiedMark,
+            };
+        }
+    } catch (error) {
+        console.error(
+            "[치지직 통나무 파워 자동 획득] 채널 정보 가져오기 실패:",
+            error
+        );
+    }
+
+    return {
+        channelId: channelId,
+        channelName: "알 수 없는 채널",
+        channelImageUrl: null,
+        verifiedMark: false,
+    };
+}
+
+// 통나무 획득 로그 저장 함수
+async function savePowerLog(channelId, amount, method, testAmount = null) {
+    try {
+        // 채널 정보 가져오기
+        const channelInfo = await getChannelInfo(channelId);
+
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            channelId: channelInfo.channelId,
+            channelName: channelInfo.channelName,
+            channelImageUrl: channelInfo.channelImageUrl,
+            verifiedMark: channelInfo.verifiedMark,
+            amount: amount,
+            method: method, // 'follow', 'view', 'claimType' 등
+        };
+
+        if (testAmount !== null) {
+            logEntry.channelName = logEntry.channelName + " (테스트) - " + logEntry.method + " - " + testAmount;
+        }
+
+        // 기존 로그 가져오기
+        const result = await chrome.storage.local.get(["powerLogs"]);
+        const logs = result.powerLogs || [];
+
+        // 새 로그 추가 (최대 1000개까지만 저장)
+        logs.unshift(logEntry);
+        if (logs.length > 1000) {
+            logs.splice(1000);
+        }
+
+        // 저장
+        await chrome.storage.local.set({ powerLogs: logs });
+        console.log("[치지직 통나무 파워 자동 획득] 로그 저장됨:", logEntry);
+    } catch (error) {
+        console.error("[치지직 통나무 파워 자동 획득] 로그 저장 실패:", error);
+    }
+}
+
 chrome.storage.sync.get("badge", (r) => {
     if (r.badge == undefined) {
         r.badge = true;
@@ -17,7 +86,7 @@ chrome.storage.sync.get("badge", (r) => {
 
 // popup에서 오는 메시지 리스너
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === 'updateBadgeToggle') {
+    if (request.action === "updateBadgeToggle") {
         badgeToggle = request.badgeToggle;
         // 즉시 뱃지 상태 업데이트
         if (lastPowerNode && lastPowerNode.parentNode) {
@@ -80,7 +149,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (!url) return;
         if (!followRe.test(url)) return;
         console.log(
-            "[치지직 통나무 파워 자동 획득] 감지: follow PerformanceObserver",
+            "[치지직 통나무 파워 자동 획득] 감지: follow",
             url
         );
         if (!followPowerCheckTimer) {
@@ -105,7 +174,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     }
                 } catch (e) {}
                 if (claims && claims.length > 0) {
-                    console.log(claims);
+                    console.log("claims: " + claims);
                     await Promise.all(
                         claims.map(async (claim) => {
                             const claimId = claim.claimId;
@@ -116,6 +185,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                     credentials: "include",
                                 });
                             } catch (e) {}
+                            // 로그 저장
+                            if (claim.claimType != "WATCH_1_HOUR") {
+                                // 로그 저장
+                                savePowerLog(channelId, 0, claim.claimType, claim.amount);
+                            }
                         })
                     );
                     for (let i = 0; i < 10; i++) {
@@ -210,7 +284,7 @@ async function fetchAndUpdatePowerAmount() {
         isChannelInactive = true; // 비활성화 상태 고정
         if (claims.length > 0) {
             console.log(
-                "[치지직 통나무 파워 자동 획득] active=false, claims 1회만 자동 획득"
+                "claims: " + claims
             );
             await Promise.all(
                 claims.map(async (claim) => {
@@ -264,11 +338,6 @@ async function fetchAndUpdatePowerAmount() {
     isChannelInactive = false; // 활성화 상태로 복귀 시 해제
     cachedPowerAmount = amount;
     updatePowerCountBadge(amount, false);
-    console.log(
-        `[치지직 통나무 파워 자동 획득] 파워 개수: ${
-            amount !== null ? amount : "?"
-        } | 갱신됨: ${now.toLocaleString()}`
-    );
     if (claims.length > 0) {
         console.log("[치지직 통나무 파워 자동 획득] claims:", claims);
         await Promise.all(
@@ -290,6 +359,11 @@ async function fetchAndUpdatePowerAmount() {
                     console.log(
                         `[치지직 통나무 파워 자동 획득] ${claimType}으로 ${amountText}개 획득`
                     );
+
+                    if (claimType != "WATCH_1_HOUR") {
+                        // 로그 저장
+                        savePowerLog(channelId, 0, claimType, amountText);
+                    }
                 } catch (e) {
                     console.log(
                         "[치지직 통나무 파워 자동 획득] PUT 요청 에러:",
@@ -302,8 +376,6 @@ async function fetchAndUpdatePowerAmount() {
         setTimeout(() => {
             fetchAndUpdatePowerAmount();
         }, 1000);
-    } else {
-        console.log("[치지직 통나무 파워 자동 획득] claims: 없음");
     }
 }
 
@@ -404,7 +476,7 @@ function createPowerBadge(amount, isInactive) {
         }
     }
     if (!badgeTarget) return;
-    
+
     // 파워 개수 표시 생성 및 삽입
     const badge = document.createElement("button");
     badge.type = "button";
@@ -435,10 +507,10 @@ function createPowerBadge(amount, isInactive) {
         amount !== null ? amount : "?"
     }<\/span>`;
     badge.classList.add("chzzk_power_badge");
-    
+
     // 비활성화 상태 설정
     updateBadgeInactiveState(badge, isInactive);
-    
+
     badge.onclick = function (e) {
         e.preventDefault();
         e.stopPropagation();
@@ -602,28 +674,32 @@ function createPowerBadge(amount, isInactive) {
                     table.innerHTML = `
             <div style="font-weight:bold;font-size:19px;margin-bottom:4px;">누적 파워: ${totalPower.toLocaleString()}</div>
             <div style="font-weight:bold;font-size:17px;margin-bottom:8px;">채널별 통나무 파워</div>
-            <div style="color:#aaa;font-size:12px;margin-bottom:16px;">100 파워 이상 보유한 채널만 표시합니다.</div>
+            <div style="color:#aaa;font-size:12px;margin-bottom:16px;">100 파워 이상 보유한 채널만 표시합니다.<br>비활성화 된 채널은 회색으로 표시됩니다.</div>
             <div style="display:flex;flex-direction:column;gap:10px;">
               ${filtered
                   .map(
                       (x, i) => `
                 <div style=\"display:flex;align-items:center;justify-content:space-between;padding:4px 0;\">
                   <div style=\"display:flex;align-items:center;gap:12px;min-width:0;\">
-                    <span style=\"font-weight:bold;width:24px;text-align:right;color:#2a6aff;font-size:17px;\">${
-                        i + 1
-                    }</span>
+                    <span style=\"font-weight:bold;width:24px;text-align:right;color:${
+                        x.active ? "#2a6aff" : "#666"
+                    };font-size:17px;\">${i + 1}</span>
                     <img src=\"${
                         x.channelImageUrl ? x.channelImageUrl : defaultImg
-                    }\" alt=\"\" style=\"width:36px;height:36px;border-radius:50%;object-fit:cover;background:#222;\">
-                    <span style=\"font-weight:bold;font-size:15px;white-space:normal;word-break:break-all;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;\">${
-                        x.channelName
-                    }${
+                    }\" alt=\"\" style=\"width:36px;height:36px;border-radius:50%;object-fit:cover;background:#222;opacity:${
+                          x.active ? "1" : "0.5"
+                      };\">
+                    <span style=\"font-weight:bold;font-size:15px;white-space:normal;word-break:break-all;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;color:${
+                        x.active ? "inherit" : "#666"
+                    };\">${x.channelName}${
                           x.verifiedMark
                               ? ` <img src='https://ssl.pstatic.net/static/nng/glive/resource/p/static/media/icon_official.a53d1555f8f4796d7862.png' alt='인증' style='width:16px;height:16px;vertical-align:middle;margin-left:2px;'>`
                               : ""
                       }</span>
                   </div>
-                  <span style=\"font-weight:bold;font-size:17px;letter-spacing:1px;\">${x.amount.toLocaleString()}</span>
+                  <span style=\"font-weight:bold;font-size:17px;letter-spacing:1px;color:${
+                      x.active ? "inherit" : "#666"
+                  };\">${x.amount.toLocaleString()}</span>
                 </div>
               `
                   )
@@ -649,7 +725,7 @@ function createPowerBadge(amount, isInactive) {
             }
         })();
     };
-    
+
     if (badgeTarget.tagName === "BUTTON") {
         badgeTarget.parentNode.insertBefore(badge, badgeTarget.nextSibling);
     } else {
@@ -739,69 +815,14 @@ setInterval(() => {
     }
 }, 1000);
 
-// log-power 자동 획득 및 claims 처리
-async function processLogPower(channelId) {
-    const logPowerUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power`;
-    let data;
-    try {
-        const res = await fetch(logPowerUrl, { credentials: "include" });
-        data = await res.json();
-    } catch (e) {
-        console.log(
-            "[치지직 통나무 파워 자동 획득] log-power GET 요청 에러:",
-            e
-        );
-        return;
-    }
-    let claims = [];
-    if (data && data.content && Array.isArray(data.content.claims)) {
-        claims = data.content.claims;
-    }
-    if (claims.length > 0) {
-        console.log("[치지직 통나무 파워 자동 획득] log-power claims:", claims);
-    } else {
-        console.log("[치지직 통나무 파워 자동 획득] log-power claims: 없음");
-    }
-    if (claims.length > 0) {
-        for (const claim of claims) {
-            const claimId = claim.claimId;
-            const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
-            try {
-                const putRes = await fetch(putUrl, {
-                    method: "PUT",
-                    credentials: "include",
-                });
-                const putJson = await putRes.json();
-                console.log(
-                    "[치지직 통나무 파워 자동 획득] PUT 응답:",
-                    putJson
-                );
-            } catch (e) {
-                console.log("[치지직 통나무 파워 자동 획득] PUT 요청 에러:", e);
-            }
-        }
-        try {
-            const getRes = await fetch(logPowerUrl, { credentials: "include" });
-            const getJson = await getRes.json();
-            console.log(
-                "[치지직 통나무 파워 자동 획득] log-power GET 재요청 응답:",
-                getJson
-            );
-        } catch (e) {
-            console.log(
-                "[치지직 통나무 파워 자동 획득] log-power GET 재요청 에러:",
-                e
-            );
-        }
-    }
-}
-
 // 파워 개수 표시용 SVG 아이콘
 const POWER_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none"><mask id="mask0_1071_43807" width="16" height="16" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type: alpha;"><path fill="currentColor" d="M6.795 2.434a.9.9 0 0 1 .74.388l.064.109 1.318 2.635H5.983l-.157-.313-.758-1.517a.9.9 0 0 1 .805-1.302h.922Z"></path><path fill="currentColor" fill-rule="evenodd" d="M12.148 4.434c.857 0 1.508.628 1.912 1.369.415.761.655 1.775.655 2.864 0 1.088-.24 2.102-.655 2.864-.404.74-1.055 1.369-1.912 1.369H4c-.857 0-1.508-.63-1.911-1.37-.416-.761-.655-1.775-.655-2.863 0-1.089.239-2.103.655-2.864.403-.74 1.054-1.37 1.911-1.37h8.148ZM4 5.566c-.248 0-.597.192-.917.779-.308.565-.517 1.385-.517 2.322 0 .936.209 1.756.517 2.321.32.587.67.779.917.779.248 0 .597-.192.917-.779.308-.565.517-1.385.517-2.321 0-.937-.209-1.757-.517-2.322-.32-.587-.67-.779-.917-.779Zm2.526 3.868a6.433 6.433 0 0 1-.222 1.132h5.363l.058-.002a.567.567 0 0 0 0-1.128l-.058-.002H6.526ZM6.284 6.7c.109.353.188.733.234 1.132h.815l.058-.002a.567.567 0 0 0 0-1.128l-.058-.002h-1.05Zm3.316 0a.567.567 0 1 0 0 1.132h3.923a4.83 4.83 0 0 0-.293-1.132H9.6Z" clip-rule="evenodd"></path><path fill="currentColor" d="M5.434 8.667c0-.937-.209-1.757-.517-2.322-.32-.587-.67-.779-.917-.779-.248 0-.597.192-.917.779-.308.565-.517 1.385-.517 2.322 0 .936.209 1.756.517 2.321.32.587.67.779.917.779.248 0 .597-.192.917-.779.308-.565.517-1.385.517-2.321Zm1.132 0c0 1.088-.239 2.102-.655 2.864C5.508 12.27 4.857 12.9 4 12.9s-1.508-.63-1.911-1.37c-.416-.761-.655-1.775-.655-2.863 0-1.089.239-2.103.655-2.864.403-.74 1.054-1.37 1.911-1.37s1.508.63 1.911 1.37c.416.761.655 1.775.655 2.864Z"></path><path fill="currentColor" d="M4.667 8.667C4.667 9.403 4.368 10 4 10c-.368 0-.667-.597-.667-1.333 0-.737.299-1.334.667-1.334.368 0 .667.597.667 1.334Z"></path></mask><g mask="url(#mask0_1071_43807)"><path fill="currentColor" d="M0 0h16v16H0z"></path></g></svg>`;
 
-function clickPowerButtonIfExists() {
+async function clickPowerButtonIfExists() {
     const aside = document.querySelector("aside#aside-chatting");
     if (!aside) return;
+    const channelId = getChannelIdFromUrl();
+    if (!channelId) return;
     const btn = Array.from(aside.querySelectorAll("button")).find((b) =>
         Array.from(b.classList).some((cls) =>
             cls.startsWith("live_chatting_power_button__")
@@ -812,6 +833,25 @@ function clickPowerButtonIfExists() {
         console.log(
             "[치지직 통나무 파워 자동 획득] 자동 클릭: live_chatting_power_button"
         );
+        // 로그 저장 (최근 1분 내 view 기록이 없을 때만 저장)
+        try {
+            const result = await chrome.storage.local.get(["powerLogs"]);
+            const logs = result.powerLogs || [];
+            const now = Date.now();
+            const hasRecentView = logs.some(
+                (log) =>
+                    log &&
+                    log.method === "view" &&
+                    log.timestamp &&
+                    new Date(log.timestamp).getTime() >= now - 60 * 1000
+            );
+            if (!hasRecentView) {
+                savePowerLog(channelId, 100, "view");
+            }
+        } catch (e) {
+            // 스토리지 조회 실패 시에는 기존 동작 유지
+            savePowerLog(channelId, 100, "view");
+        }
         fetchAndUpdatePowerAmount();
     }
 }
