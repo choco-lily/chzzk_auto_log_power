@@ -26,3 +26,20 @@
 
 ![통나무 파워 로그](example3.png)<br>
 통나무 파워 획득 로그 확인<br>
+
+## 라이선스
+
+이 프로젝트는 GPL-3.0 라이선스를 따릅니다.
+
+- 사용, 복제, 배포, 수정은 자유입니다.
+- 배포 시 저작자 표시(프로젝트명과 원저자 표기)가 필요합니다.
+- 수정본 또는 파생 저작물을 배포하는 경우, 동일한 GPL-3.0으로 전체 코드를 공개해야 합니다.
+- 보증은 제공되지 않습니다(자세한 내용은 `LICENSE` 파일 참조).
+
+저작자 표시 예시:
+
+```
+치지직 통나무 파워 자동 획득 — Copyright © 2025 chocolily
+원본 저장소: https://chromewebstore.google.com/detail/mdammcmmopljkpnokoodkahdhnpijhib
+라이선스: GPL-3.0
+```
