@@ -36,6 +36,12 @@
 - 수정본 또는 파생 저작물을 배포하는 경우, 동일한 GPL-3.0으로 전체 코드를 공개해야 합니다.
 - 보증은 제공되지 않습니다(자세한 내용은 `LICENSE` 파일 참조).
 
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 저작자 표시 예시:
 
 ```
