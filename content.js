@@ -55,6 +55,9 @@ async function savePowerLog(channelId, amount, method, testAmount = null) {
         };
 
         if (testAmount !== null) {
+            if (method.toUpperCase() == "FOLLOW") {
+                return;
+            }
             logEntry.channelName = logEntry.channelName + " (테스트) - " + logEntry.method + " - " + testAmount;
         }
 
@@ -792,7 +795,7 @@ document.addEventListener("DOMContentLoaded", startPowerCountUpdater);
 setTimeout(startPowerCountUpdater, 2000);
 
 function isLivePage() {
-    return location.pathname.startsWith("/live");
+    return location.href.includes("/live");
 }
 
 // 1초마다 url 변경 감지 및 갱신 (chzzk.naver.com 전체에서 동작)
