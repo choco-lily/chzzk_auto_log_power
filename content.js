@@ -7,6 +7,29 @@ let popupCreateRetryTimer = null; // 배지 클릭 시 팝업 생성 재시도 �
 let popupLayerEscHandler = null; // 팝업 ESC 핸들러 참조 저장
 let badgeToggle = false;
 
+// 현재 테마가 다크인지 여부 (html 태그에 theme_dark 클래스 존재 여부)
+function isDarkTheme() {
+	try {
+		return document.documentElement.classList.contains("theme_dark");
+	} catch (e) {
+		return true;
+	}
+}
+
+// 테마별 색상 모음
+function getThemeColors() {
+	const dark = isDarkTheme();
+	return {
+		bg: dark ? "none" : "#fff",
+		fg: dark ? "#fff" : "#000",
+		hoverBg: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+		popupBg: dark ? "var(--Ref-Color-Neutral-90, #141517)" : "#fff",
+		popupFg: dark ? "#fff" : "#000",
+		border: "1px solid #0008",
+		inactiveIcon: "#888",
+	};
+}
+
 // 채널 정보 가져오기 함수
 async function getChannelInfo(channelId) {
     try {
@@ -484,39 +507,48 @@ function createPowerBadge(amount, isInactive) {
     const badge = document.createElement("button");
     badge.type = "button";
     badge.setAttribute("tabindex", "-1");
-    badge.style.display = "inline-flex";
+	badge.style.display = "inline-flex";
     badge.style.alignItems = "center";
     badge.style.justifyContent = "center";
     badge.style.height = "24px";
     badge.style.minWidth = "24px";
-    badge.style.background = "none";
+	const colors = getThemeColors();
+	badge.style.background = colors.bg;
     badge.style.border = "none";
     badge.style.padding = "0 2px";
     badge.style.marginLeft = "0px";
     badge.style.fontFamily = "inherit";
     badge.style.fontWeight = "bold";
     badge.style.fontSize = "11px";
-    badge.style.color = "#fff";
+	badge.style.color = colors.fg;
     badge.style.cursor = "pointer";
     badge.addEventListener("mouseenter", () => {
         badge.style.cursor = "pointer";
-        badge.style.background = "rgba(255,255,255,0.08)";
+		badge.style.background = colors.hoverBg;
     });
     badge.addEventListener("mouseleave", () => {
         badge.style.cursor = "pointer";
-        badge.style.background = "none";
+		badge.style.background = colors.bg;
     });
     badge.innerHTML = `${POWER_ICON_SVG}<span style="margin-left:4px;vertical-align:middle;">${
-        amount !== null ? amount : "?"
+		amount !== null ? amount : "?"
     }<\/span>`;
     badge.classList.add("chzzk_power_badge");
+	// 라이트 모드에서 아이콘 색상은 텍스트 색상과 동기화
+	const svg = badge.querySelector("svg");
+	if (svg) {
+		svg.style.color = colors.fg;
+		svg.setAttribute("fill", "currentColor");
+	}
 
     // 비활성화 상태 설정
-    updateBadgeInactiveState(badge, isInactive);
+	updateBadgeInactiveState(badge, isInactive);
 
     badge.onclick = function (e) {
         e.preventDefault();
         e.stopPropagation();
+		// 뱃지 클릭 시 즉시 파워 개수 갱신
+		fetchAndUpdatePowerAmount();
         const existPopup = document.querySelector(
             ".chzzk_power_popup_layer, .live_chatting_popup_donation_layer__sQ9nX"
         );
@@ -583,8 +615,9 @@ function createPowerBadge(amount, isInactive) {
             popupContainer.style.justifyContent = "center";
             popupContainer.style.maxHeight = "100%";
             popupContainer.style.overflow = "visible";
-            popupContainer.style.background =
-                "var(--Ref-Color-Neutral-90, #141517)";
+			const colors2 = getThemeColors();
+			popupContainer.style.background = colors2.popupBg;
+			popupContainer.style.color = colors2.popupFg;
             popupContainer.style.border = "1px solid #0008";
             popupContainer.innerHTML = "";
 
@@ -603,7 +636,7 @@ function createPowerBadge(amount, isInactive) {
             closeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path fill="currentColor" d="M16.6 4.933A1.083 1.083 0 1 0 15.066 3.4L10 8.468 4.933 3.4A1.083 1.083 0 0 0 3.4 4.933L8.468 10 3.4 15.067A1.083 1.083 0 1 0 4.933 16.6L10 11.532l5.067 5.067a1.083 1.083 0 1 0 1.532-1.532L11.532 10l5.067-5.067Z"/></svg>`;
             closeBtn.style.background = "none";
             closeBtn.style.border = "none";
-            closeBtn.style.color = "#fff";
+			closeBtn.style.color = colors2.popupFg;
             closeBtn.style.width = "32px";
             closeBtn.style.height = "32px";
             closeBtn.style.display = "inline-flex";
@@ -611,18 +644,18 @@ function createPowerBadge(amount, isInactive) {
             closeBtn.style.justifyContent = "center";
             closeBtn.style.borderRadius = "8px";
             closeBtn.style.cursor = "pointer";
-            closeBtn.addEventListener("mouseenter", () => {
-                closeBtn.style.background = "rgba(255,255,255,0.08)";
-            });
+			closeBtn.addEventListener("mouseenter", () => {
+				closeBtn.style.background = colors2.hoverBg;
+			});
             closeBtn.addEventListener("mouseleave", () => {
-                closeBtn.style.background = "none";
+				closeBtn.style.background = colors2.bg;
             });
 
             // 로딩 표시
             const loading = document.createElement("div");
             loading.style.padding = "32px 0";
             loading.style.fontSize = "18px";
-            loading.style.color = "#fff";
+			loading.style.color = colors2.popupFg;
             loading.textContent = "불러오는 중...";
 
             closeBtn.onclick = removePopup;
@@ -752,6 +785,11 @@ function updateBadgeInactiveState(badge, isInactive) {
             const tooltip = document.createElement("div");
             tooltip.textContent = "통나무가 비활성화 된 채널입니다.";
             tooltip.className = "log_disabled_tooltip";
+            // 라이트 모드에서 툴팁 색상도 흰 배경/검은 글자로 보정
+            const colors = getThemeColors();
+            tooltip.style.backgroundColor = colors.bg === "none" ? "#2e3033" : "#fff";
+            tooltip.style.color = colors.fg;
+            tooltip.style.border = "1px solid #0008";
             badge.appendChild(tooltip);
         }
     } else {
@@ -759,7 +797,8 @@ function updateBadgeInactiveState(badge, isInactive) {
         // 아이콘 색상을 원래대로 복원
         const svg = badge.querySelector("svg");
         if (svg) {
-            svg.style.color = "#fff";
+            const colors = getThemeColors();
+            svg.style.color = colors.fg; // currentColor에 맞춤
             svg.setAttribute("fill", "currentColor");
         }
         // 안내 텍스트 div 제거
