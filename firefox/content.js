@@ -334,6 +334,15 @@ async function fetchAndUpdatePowerAmount() {
                         console.log(
                             `[치지직 통나무 파워 자동 획득] ${claimType}으로 ${amountText}개 획득`
                         );
+                        if (claimType == "WATCH_1_HOUR") {
+                            // 로그 저장
+                            savePowerLog(channelId, 100, claimType);
+                        }
+                        else if (claimType == "FOLLOW") {
+                            savePowerLog(channelId, 300, "FOLLOW");
+                        } else {
+                            savePowerLog(channelId, 0, claimType, amountText);
+                        }
                     } catch (e) {
                         console.log(
                             "[치지직 통나무 파워 자동 획득] PUT 요청 에러:",
