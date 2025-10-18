@@ -1,7 +1,7 @@
 {
-    "manifest_version": 3,
+    "manifest_version": 2,
     "name": "치지직 통나무 파워 자동 획득",
-    "version": "1.1.5",
+    "version": "1.0.0",
     "description": "치지직 파워(통나무) 자동 획득 및 파워 개수 표시",
     "content_scripts": [
         {
@@ -12,7 +12,7 @@
             "js": ["content.js"]
         }
     ],
-    "action": {
+    "browser_action": {
         "default_popup": "index.html",
         "default_icon": "icon.png"
     },
@@ -22,12 +22,10 @@
     "permissions": [
         "storage",
         "activeTab",
-        "tabs"
+        "tabs",
+        "https://api.chzzk.naver.com/*"
     ],
     "web_accessible_resources": [
-        {
-            "resources": ["log.html"],
-            "matches": ["<all_urls>"]
-        }
+        "log.html"
     ]
 }

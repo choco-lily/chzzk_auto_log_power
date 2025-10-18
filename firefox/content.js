@@ -9,25 +9,25 @@ let badgeToggle = false;
 
 // 현재 테마가 다크인지 여부 (html 태그에 theme_dark 클래스 존재 여부)
 function isDarkTheme() {
-    try {
-        return document.documentElement.classList.contains("theme_dark");
-    } catch (e) {
-        return true;
-    }
+	try {
+		return document.documentElement.classList.contains("theme_dark");
+	} catch (e) {
+		return true;
+	}
 }
 
 // 테마별 색상 모음
 function getThemeColors() {
-    const dark = isDarkTheme();
-    return {
-        bg: dark ? "none" : "#fff",
-        fg: dark ? "#fff" : "#000",
-        hoverBg: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
-        popupBg: dark ? "var(--Ref-Color-Neutral-90, #141517)" : "#fff",
-        popupFg: dark ? "#fff" : "#000",
-        border: "1px solid #0008",
-        inactiveIcon: "#888",
-    };
+	const dark = isDarkTheme();
+	return {
+		bg: dark ? "none" : "#fff",
+		fg: dark ? "#fff" : "#000",
+		hoverBg: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)",
+		popupBg: dark ? "var(--Ref-Color-Neutral-90, #141517)" : "#fff",
+		popupFg: dark ? "#fff" : "#000",
+		border: "1px solid #0008",
+		inactiveIcon: "#888",
+	};
 }
 
 // 채널 정보 가져오기 함수
@@ -81,16 +81,11 @@ async function savePowerLog(channelId, amount, method, testAmount = null) {
             if (method.toUpperCase() == "FOLLOW") {
                 return;
             }
-            logEntry.channelName =
-                logEntry.channelName +
-                " (테스트) - " +
-                logEntry.method +
-                " - " +
-                testAmount;
+            logEntry.channelName = logEntry.channelName + " (테스트) - " + logEntry.method + " - " + testAmount;
         }
 
         // 기존 로그 가져오기
-        const result = await chrome.storage.local.get(["powerLogs"]);
+        const result = await browser.storage.local.get(["powerLogs"]);
         const logs = result.powerLogs || [];
 
         // 새 로그 추가 (최대 1000개까지만 저장)
@@ -100,23 +95,26 @@ async function savePowerLog(channelId, amount, method, testAmount = null) {
         }
 
         // 저장
-        await chrome.storage.local.set({ powerLogs: logs });
+        await browser.storage.local.set({ powerLogs: logs });
         console.log("[치지직 통나무 파워 자동 획득] 로그 저장됨:", logEntry);
     } catch (error) {
         console.error("[치지직 통나무 파워 자동 획득] 로그 저장 실패:", error);
     }
 }
 
-chrome.storage.sync.get("badge", (r) => {
+browser.storage.sync.get("badge").then((r) => {
     if (r.badge == undefined) {
         r.badge = true;
-        chrome.storage.sync.set({ badge: true });
+        browser.storage.sync.set({ badge: true });
     }
     badgeToggle = r.badge;
+}).catch((error) => {
+    console.error("Storage sync get error:", error);
+    badgeToggle = true; // 기본값 설정
 });
 
 // popup에서 오는 메시지 리스너
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "updateBadgeToggle") {
         badgeToggle = request.badgeToggle;
         // 즉시 뱃지 상태 업데이트
@@ -179,7 +177,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     function handleUrl(url) {
         if (!url) return;
         if (!followRe.test(url)) return;
-        console.log("[치지직 통나무 파워 자동 획득] 감지: follow", url);
+        console.log(
+            "[치지직 통나무 파워 자동 획득] 감지: follow",
+            url
+        );
         if (!followPowerCheckTimer) {
             let tryCount = 0;
             followPowerCheckTimer = setInterval(async () => {
@@ -202,10 +203,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     }
                 } catch (e) {}
                 if (claims && claims.length > 0) {
-                    console.log(
-                        "[치지직 통나무 파워 자동 획득] claims:",
-                        claims
-                    );
+                    console.log("[치지직 통나무 파워 자동 획득] claims:", claims);
                     await Promise.all(
                         claims.map(async (claim) => {
                             const claimId = claim.claimId;
@@ -219,11 +217,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             // 로그 저장
                             if (claim.claimType != "WATCH_1_HOUR") {
                                 // 로그 저장
-                                savePowerLog(
-                                    channelId,
-                                    claim.amount,
-                                    claim.claimType
-                                );
+                                savePowerLog(channelId, claim.amount, claim.claimType);
                             }
                         })
                     );
@@ -318,7 +312,9 @@ async function fetchAndUpdatePowerAmount() {
     if (active === false) {
         isChannelInactive = true; // 비활성화 상태 고정
         if (claims.length > 0) {
-            console.log("[치지직 통나무 파워 자동 획득] claims:", claims);
+            console.log(
+                "[치지직 통나무 파워 자동 획득] claims:", claims
+            );
             await Promise.all(
                 claims.map(async (claim) => {
                     const claimId = claim.claimId;
@@ -452,10 +448,10 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
     // 비활성화 상태 고정 시 무조건 비활성화 뱃지
     if (isChannelInactive) isInactive = true;
     // badgeToggle 값 확인 후 항상 새로 생성
-    chrome.storage.sync.get("badge", (r) => {
+    browser.storage.sync.get("badge").then((r) => {
         if (r.badge == undefined) {
             r.badge = true;
-            chrome.storage.sync.set({ badge: true });
+            browser.storage.sync.set({ badge: true });
         }
         badgeToggle = r.badge;
 
@@ -469,6 +465,15 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
         if (!badgeToggle) return;
 
         // 새 뱃지 생성
+        createPowerBadge(amount, isInactive);
+    }).catch((error) => {
+        console.error("Storage sync get error:", error);
+        badgeToggle = true; // 기본값 설정
+        // 기본값으로 뱃지 생성
+        if (lastPowerNode && lastPowerNode.parentNode) {
+            lastPowerNode.parentNode.removeChild(lastPowerNode);
+            lastPowerNode = null;
+        }
         createPowerBadge(amount, isInactive);
     });
 }
@@ -514,48 +519,48 @@ function createPowerBadge(amount, isInactive) {
     const badge = document.createElement("button");
     badge.type = "button";
     badge.setAttribute("tabindex", "-1");
-    badge.style.display = "inline-flex";
+	badge.style.display = "inline-flex";
     badge.style.alignItems = "center";
     badge.style.justifyContent = "center";
     badge.style.height = "24px";
     badge.style.minWidth = "24px";
-    const colors = getThemeColors();
-    badge.style.background = colors.bg;
+	const colors = getThemeColors();
+	badge.style.background = colors.bg;
     badge.style.border = "none";
     badge.style.padding = "0 2px";
     badge.style.marginLeft = "0px";
     badge.style.fontFamily = "inherit";
     badge.style.fontWeight = "bold";
     badge.style.fontSize = "11px";
-    badge.style.color = colors.fg;
+	badge.style.color = colors.fg;
     badge.style.cursor = "pointer";
     badge.addEventListener("mouseenter", () => {
         badge.style.cursor = "pointer";
-        badge.style.background = colors.hoverBg;
+		badge.style.background = colors.hoverBg;
     });
     badge.addEventListener("mouseleave", () => {
         badge.style.cursor = "pointer";
-        badge.style.background = colors.bg;
+		badge.style.background = colors.bg;
     });
     badge.innerHTML = `${POWER_ICON_SVG}<span style="margin-left:4px;vertical-align:middle;">${
-        amount !== null ? amount : "?"
+		amount !== null ? amount : "?"
     }<\/span>`;
     badge.classList.add("chzzk_power_badge");
-    // 라이트 모드에서 아이콘 색상은 텍스트 색상과 동기화
-    const svg = badge.querySelector("svg");
-    if (svg) {
-        svg.style.color = colors.fg;
-        svg.setAttribute("fill", "currentColor");
-    }
+	// 라이트 모드에서 아이콘 색상은 텍스트 색상과 동기화
+	const svg = badge.querySelector("svg");
+	if (svg) {
+		svg.style.color = colors.fg;
+		svg.setAttribute("fill", "currentColor");
+	}
 
     // 비활성화 상태 설정
-    updateBadgeInactiveState(badge, isInactive);
+	updateBadgeInactiveState(badge, isInactive);
 
     badge.onclick = function (e) {
         e.preventDefault();
         e.stopPropagation();
-        // 뱃지 클릭 시 즉시 파워 개수 갱신
-        fetchAndUpdatePowerAmount();
+		// 뱃지 클릭 시 즉시 파워 개수 갱신
+		fetchAndUpdatePowerAmount();
         const existPopup = document.querySelector(
             ".chzzk_power_popup_layer, .live_chatting_popup_donation_layer__sQ9nX"
         );
@@ -622,9 +627,9 @@ function createPowerBadge(amount, isInactive) {
             popupContainer.style.justifyContent = "center";
             popupContainer.style.maxHeight = "100%";
             popupContainer.style.overflow = "visible";
-            const colors2 = getThemeColors();
-            popupContainer.style.background = colors2.popupBg;
-            popupContainer.style.color = colors2.popupFg;
+			const colors2 = getThemeColors();
+			popupContainer.style.background = colors2.popupBg;
+			popupContainer.style.color = colors2.popupFg;
             popupContainer.style.border = "1px solid #0008";
             popupContainer.innerHTML = "";
 
@@ -643,7 +648,7 @@ function createPowerBadge(amount, isInactive) {
             closeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none"><path fill="currentColor" d="M16.6 4.933A1.083 1.083 0 1 0 15.066 3.4L10 8.468 4.933 3.4A1.083 1.083 0 0 0 3.4 4.933L8.468 10 3.4 15.067A1.083 1.083 0 1 0 4.933 16.6L10 11.532l5.067 5.067a1.083 1.083 0 1 0 1.532-1.532L11.532 10l5.067-5.067Z"/></svg>`;
             closeBtn.style.background = "none";
             closeBtn.style.border = "none";
-            closeBtn.style.color = colors2.popupFg;
+			closeBtn.style.color = colors2.popupFg;
             closeBtn.style.width = "32px";
             closeBtn.style.height = "32px";
             closeBtn.style.display = "inline-flex";
@@ -651,18 +656,18 @@ function createPowerBadge(amount, isInactive) {
             closeBtn.style.justifyContent = "center";
             closeBtn.style.borderRadius = "8px";
             closeBtn.style.cursor = "pointer";
-            closeBtn.addEventListener("mouseenter", () => {
-                closeBtn.style.background = colors2.hoverBg;
-            });
+			closeBtn.addEventListener("mouseenter", () => {
+				closeBtn.style.background = colors2.hoverBg;
+			});
             closeBtn.addEventListener("mouseleave", () => {
-                closeBtn.style.background = colors2.bg;
+				closeBtn.style.background = colors2.bg;
             });
 
             // 로딩 표시
             const loading = document.createElement("div");
             loading.style.padding = "32px 0";
             loading.style.fontSize = "18px";
-            loading.style.color = colors2.popupFg;
+			loading.style.color = colors2.popupFg;
             loading.textContent = "불러오는 중...";
 
             closeBtn.onclick = removePopup;
@@ -794,8 +799,7 @@ function updateBadgeInactiveState(badge, isInactive) {
             tooltip.className = "log_disabled_tooltip";
             // 라이트 모드에서 툴팁 색상도 흰 배경/검은 글자로 보정
             const colors = getThemeColors();
-            tooltip.style.backgroundColor =
-                colors.bg === "none" ? "#2e3033" : "#fff";
+            tooltip.style.backgroundColor = colors.bg === "none" ? "#2e3033" : "#fff";
             tooltip.style.color = colors.fg;
             tooltip.style.border = "1px solid #0008";
             badge.appendChild(tooltip);
@@ -885,7 +889,7 @@ async function clickPowerButtonIfExists() {
         );
         // 로그 저장 (최근 1분 내 view 기록이 없을 때만 저장)
         try {
-            const result = await chrome.storage.local.get(["powerLogs"]);
+            const result = await browser.storage.local.get(["powerLogs"]);
             const logs = result.powerLogs || [];
             const now = Date.now();
             const hasRecentView = logs.some(

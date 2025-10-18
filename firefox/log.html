@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>치지직 통나무 파워 획득 로그</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --bg-tertiary: #3a3a3a;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --text-muted: #888888;
+            --border-color: #404040;
+            --accent-color: #2a6aff;
+            --accent-hover: #1e40af;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --gradient-bg: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+        }
+
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f8fafc;
+            --bg-tertiary: #e2e8f0;
+            --text-primary: #1f2937;
+            --text-secondary: #6b7280;
+            --text-muted: #9ca3af;
+            --border-color: #d1d5db;
+            --accent-color: #2a6aff;
+            --accent-hover: #1e40af;
+            --success-color: #059669;
+            --danger-color: #dc2626;
+            --gradient-bg: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gradient-bg);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 18px;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+
+        .period-stats {
+            padding: 30px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .period-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .period-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .period-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .period-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .period-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .period-date {
+            font-size: 12px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .period-content {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .period-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .period-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .period-value {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--success-color);
+        }
+
+
+        .filters {
+            padding: 20px 30px;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(42, 106, 255, 0.2);
+        }
+
+        .logs-container {
+            padding: 30px;
+            max-height: 600px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+        }
+
+        .log-item {
+            display: flex;
+            align-items: center;
+            padding: 20px;
+            margin-bottom: 16px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .log-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+        }
+
+        .channel-image {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 16px;
+            border: 2px solid var(--border-color);
+        }
+
+        .log-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .channel-name {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .channel-link {
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .channel-link:hover {
+            color: var(--accent-color);
+            text-decoration: underline;
+        }
+
+        .log-details {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .method-badge {
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .method-follow {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .method-view {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .method-remember {
+            background: #373584;
+            color: white;
+        }
+
+        /* 동적 method 클래스 기본 스타일 */
+        .method-badge:not(.method-follow):not(.method-view):not(.method-remember) {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .log-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+        }
+
+        .amount {
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--success-color);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 4px;
+        }
+
+        .edit-btn, .delete-btn, .test-btn {
+            background: none;
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            color: var(--text-secondary);
+        }
+
+        .edit-btn:hover {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        .delete-btn:hover {
+            background: var(--danger-color);
+            color: white;
+            border-color: var(--danger-color);
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state img {
+            width: 80px;
+            height: 80px;
+            opacity: 0.5;
+            margin-bottom: 20px;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .empty-state p {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .clear-logs {
+            background: var(--danger-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clear-logs:hover {
+            background: var(--danger-color);
+            opacity: 0.8;
+            transform: translateY(-1px);
+        }
+
+        /* 필터 영역 테스트 추가 버튼: 평소엔 숨김, 호버 시 미세하게 */
+        #testAddBtn {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            opacity: 0;
+            cursor: default;
+        }
+        
+        #testAddBtn:hover { opacity: 0.025; }
+
+        /* 편집 모달 스타일 */
+        .edit-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .edit-modal {
+            background: var(--bg-primary);
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .edit-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .edit-modal-header h3 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 18px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .edit-modal-content {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 500;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px rgba(42, 106, 255, 0.2);
+        }
+
+        .edit-modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .cancel-btn, .save-btn, .modal-delete-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .cancel-btn {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .cancel-btn:hover {
+            background: var(--border-color);
+        }
+
+        .save-btn {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .save-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        /* 모달 전용 빨간 버튼 (우선순위 강화) */
+        .edit-modal .modal-delete-btn {
+            background: var(--danger-color) !important;
+            color: #fff !important;
+            border: none;
+        }
+
+        .edit-modal .modal-delete-btn:hover {
+            filter: brightness(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+
+            .filters {
+                padding: 15px 20px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-group {
+                justify-content: space-between;
+            }
+
+            .logs-container {
+                padding: 20px;
+            }
+
+            .log-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
+            .log-content {
+                width: 100%;
+            }
+
+            .amount {
+                margin-left: 0;
+                align-self: flex-end;
+            }
+
+            .period-stats {
+                padding: 20px;
+            }
+
+            .period-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .period-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .log-actions {
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            .edit-modal {
+                width: 95%;
+                margin: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="theme-toggle" id="themeToggle" title="테마 변경">🌙</button>
+            <h1>🌲 통나무 파워 획득 로그</h1>
+            <p>언제, 어떤 채널에서, 어떤 방식으로 통나무를 획득했는지 확인하세요</p>
+        </div>
+
+
+        <div class="period-stats">
+            <div class="period-grid">
+                <div class="period-card">
+                    <div class="period-header">
+                        <span class="period-title">오늘</span>
+                        <span class="period-date" id="todayDate"></span>
+                    </div>
+                    <div class="period-content">
+                        <div class="period-item">
+                            <span class="period-label">획득 횟수:</span>
+                            <span class="period-value" id="todayCount">0회</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">획득 통나무:</span>
+                            <span class="period-value" id="todayPower">0개</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">참여 채널:</span>
+                            <span class="period-value" id="todayChannels">0개</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="period-card">
+                    <div class="period-header">
+                        <span class="period-title">이번 주</span>
+                        <span class="period-date" id="weekDate"></span>
+                    </div>
+                    <div class="period-content">
+                        <div class="period-item">
+                            <span class="period-label">획득 횟수:</span>
+                            <span class="period-value" id="weekCount">0회</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">획득 통나무:</span>
+                            <span class="period-value" id="weekPower">0개</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">참여 채널:</span>
+                            <span class="period-value" id="weekChannels">0개</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="period-card">
+                    <div class="period-header">
+                        <span class="period-title">이번 달</span>
+                        <span class="period-date" id="monthDate"></span>
+                    </div>
+                    <div class="period-content">
+                        <div class="period-item">
+                            <span class="period-label">획득 횟수:</span>
+                            <span class="period-value" id="monthCount">0회</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">획득 통나무:</span>
+                            <span class="period-value" id="monthPower">0개</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">참여 채널:</span>
+                            <span class="period-value" id="monthChannels">0개</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="period-card">
+                    <div class="period-header">
+                        <span class="period-title">전체 기간</span>
+                        <span class="period-date" id="allDate"></span>
+                    </div>
+                    <div class="period-content">
+                        <div class="period-item">
+                            <span class="period-label">획득 횟수:</span>
+                            <span class="period-value" id="allCount">0회</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">획득 통나무:</span>
+                            <span class="period-value" id="allPower">0개</span>
+                        </div>
+                        <div class="period-item">
+                            <span class="period-label">참여 채널:</span>
+                            <span class="period-value" id="allChannels">0개</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filters">
+            <div class="filter-group">
+                <label for="methodFilter">방식:</label>
+                <select id="methodFilter">
+                    <option value="">전체</option>
+                    <option value="follow">팔로우</option>
+                    <option value="view">시청</option>
+                    <option value="others">기타</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="channelFilter">채널:</label>
+                <input type="text" id="channelFilter" placeholder="채널명 검색...">
+            </div>
+            <div class="filter-group">
+                <label for="dateFilter">날짜:</label>
+                <select id="dateFilter">
+                    <option value="">전체</option>
+                    <option value="today">오늘</option>
+                    <option value="week">이번 주</option>
+                    <option value="month">이번 달</option>
+                </select>
+            </div>
+            <button class="clear-logs" id="clearLogsBtn">로그 삭제</button>
+            <button class="test-add" id="testAddBtn">테스트 추가</button>
+        </div>
+
+        <div class="logs-container">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>로그를 불러오는 중...</p>
+            </div>
+            <div id="logsList"></div>
+        </div>
+    </div>
+
+    <script src="log.js"></script>
+</body>
+</html>
