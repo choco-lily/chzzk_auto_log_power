@@ -18,13 +18,13 @@
 
 ## 사용 예시
 
-![파워 개수 표시 예시](example.png)<br>
+![파워 개수 표시 예시](example/example.png)<br>
 채팅 입력창 옆에 통나무 파워 개수 표시<br>
 
-![채널별 통나무 파워 팝업 예시](example2.png)<br>
+![채널별 통나무 파워 팝업 예시](example/example2.png)<br>
 통나무 아이콘 클릭 시 채널별 파워 랭킹 팝업<br>
 
-![통나무 파워 로그](example3.png)<br>
+![통나무 파워 로그](example/example3.png)<br>
 통나무 파워 획득 로그 확인<br>
 
 ## 라이선스
