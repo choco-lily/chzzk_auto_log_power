@@ -261,7 +261,13 @@ function renderLogs() {
         });
         
         const methodClass = getMethodClass(log.method);
-        const methodText = getMethodText(log.method);
+        let methodText = getMethodText(log.method);
+        // VIEW + 구독 티어별 라벨 보강
+        if (String(log.method || '').toUpperCase() === 'VIEW') {
+            const amt = typeof log.amount === 'number' ? log.amount : NaN;
+            if (amt === 120) methodText = '시청 - 1티어 구독';
+            else if (amt === 200) methodText = '시청 - 2티어 구독';
+        }
         
         return `
             <div class="log-item" data-log-index="${filteredLogs.indexOf(log)}">
