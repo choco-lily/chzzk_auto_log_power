@@ -6,7 +6,9 @@ let followPowerCheckTimer = null;
 let popupCreateRetryTimer = null; // 배지 클릭 시 팝업 생성 재시도 타이머
 let popupLayerEscHandler = null; // 팝업 ESC 핸들러 참조 저장
 let badgeToggle = false;
+let clockToggle = false;
 let lastViewLogTimestampMs = null; // 최근 view 로그 기록 시각 (메모리)
+let lastClockNode = null; // 시계 UI 노드 참조
 
 // 현재 테마가 다크인지 여부 (html 태그에 theme_dark 클래스 존재 여부)
 function isDarkTheme() {
@@ -108,12 +110,17 @@ async function savePowerLog(channelId, amount, method, testAmount = null) {
     }
 }
 
-chrome.storage.sync.get("badge", (r) => {
+chrome.storage.sync.get(["badge", "clockToggle"], (r) => {
     if (r.badge == undefined) {
         r.badge = true;
         chrome.storage.sync.set({ badge: true });
     }
+    if (r.clockToggle == undefined) {
+        r.clockToggle = false;
+        chrome.storage.sync.set({ clockToggle: false });
+    }
     badgeToggle = r.badge;
+    clockToggle = r.clockToggle;
 });
 
 // popup에서 오는 메시지 리스너
@@ -126,6 +133,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } else if (badgeToggle) {
             // 뱃지가 없고 badgeToggle이 true인 경우 생성
             updatePowerCountBadge();
+        }
+    } else if (request.action === "updateClockToggle") {
+        clockToggle = request.clockToggle;
+        // 즉시 시계 상태 업데이트
+        if (lastClockNode && lastClockNode.parentNode) {
+            lastClockNode.style.display = clockToggle ? "inline-flex" : "none";
+        } else if (clockToggle) {
+            // 시계가 없고 clockToggle이 true인 경우 생성
+            updateClockDisplay();
         }
     }
 });
@@ -834,6 +850,7 @@ function startPowerBadgeDomPoller() {
     if (powerBadgeDomPoller) clearInterval(powerBadgeDomPoller);
     powerBadgeDomPoller = setInterval(() => {
         updatePowerCountBadge();
+        updateClockDisplay();
         clickPowerButtonIfExists();
     }, 1000);
 }
@@ -877,6 +894,146 @@ setInterval(() => {
 
 // 파워 개수 표시용 SVG 아이콘
 const POWER_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none"><mask id="mask0_1071_43807" width="16" height="16" x="0" y="0" maskUnits="userSpaceOnUse" style="mask-type: alpha;"><path fill="currentColor" d="M6.795 2.434a.9.9 0 0 1 .74.388l.064.109 1.318 2.635H5.983l-.157-.313-.758-1.517a.9.9 0 0 1 .805-1.302h.922Z"></path><path fill="currentColor" fill-rule="evenodd" d="M12.148 4.434c.857 0 1.508.628 1.912 1.369.415.761.655 1.775.655 2.864 0 1.088-.24 2.102-.655 2.864-.404.74-1.055 1.369-1.912 1.369H4c-.857 0-1.508-.63-1.911-1.37-.416-.761-.655-1.775-.655-2.863 0-1.089.239-2.103.655-2.864.403-.74 1.054-1.37 1.911-1.37h8.148ZM4 5.566c-.248 0-.597.192-.917.779-.308.565-.517 1.385-.517 2.322 0 .936.209 1.756.517 2.321.32.587.67.779.917.779.248 0 .597-.192.917-.779.308-.565.517-1.385.517-2.321 0-.937-.209-1.757-.517-2.322-.32-.587-.67-.779-.917-.779Zm2.526 3.868a6.433 6.433 0 0 1-.222 1.132h5.363l.058-.002a.567.567 0 0 0 0-1.128l-.058-.002H6.526ZM6.284 6.7c.109.353.188.733.234 1.132h.815l.058-.002a.567.567 0 0 0 0-1.128l-.058-.002h-1.05Zm3.316 0a.567.567 0 1 0 0 1.132h3.923a4.83 4.83 0 0 0-.293-1.132H9.6Z" clip-rule="evenodd"></path><path fill="currentColor" d="M5.434 8.667c0-.937-.209-1.757-.517-2.322-.32-.587-.67-.779-.917-.779-.248 0-.597.192-.917.779-.308.565-.517 1.385-.517 2.322 0 .936.209 1.756.517 2.321.32.587.67.779.917.779.248 0 .597-.192.917-.779.308-.565.517-1.385.517-2.321Zm1.132 0c0 1.088-.239 2.102-.655 2.864C5.508 12.27 4.857 12.9 4 12.9s-1.508-.63-1.911-1.37c-.416-.761-.655-1.775-.655-2.863 0-1.089.239-2.103.655-2.864.403-.74 1.054-1.37 1.911-1.37s1.508.63 1.911 1.37c.416.761.655 1.775.655 2.864Z"></path><path fill="currentColor" d="M4.667 8.667C4.667 9.403 4.368 10 4 10c-.368 0-.667-.597-.667-1.333 0-.737.299-1.334.667-1.334.368 0 .667.597.667 1.334Z"></path></mask><g mask="url(#mask0_1071_43807)"><path fill="currentColor" d="M0 0h16v16H0z"></path></g></svg>`;
+
+// 시계 아이콘 SVG
+const CLOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 16 16" fill="none"><path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM8 2.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11ZM8.5 5a.5.5 0 0 0-1 0v3a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 0-1H8.5V5Z"/></svg>`;
+
+// 다음 파워 획득 시간 계산 (content script용)
+function calculateNextPowerTimeForClock() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['powerLogs', 'lastPowerAcquisitionTime'], (result) => {
+            const logs = result.powerLogs || [];
+            const lastAcquisitionTime = result.lastPowerAcquisitionTime;
+            const now = new Date();
+            
+            let nextPowerTime;
+            
+            if (lastAcquisitionTime) {
+                // 마지막 획득 시간이 있으면 그 시간부터 1시간 후
+                const lastTime = new Date(lastAcquisitionTime);
+                nextPowerTime = new Date(lastTime.getTime() + 60 * 60 * 1000);
+                
+                // 이미 1시간이 지났으면 현재 시간 기준으로 재계산
+                if (nextPowerTime <= now) {
+                    nextPowerTime = calculateFromLastLogForClock(logs, now);
+                }
+            } else {
+                // 마지막 획득 시간이 없으면 마지막 로그 기준으로 계산
+                nextPowerTime = calculateFromLastLogForClock(logs, now);
+            }
+            
+            resolve(nextPowerTime);
+        });
+    });
+}
+
+// 마지막 로그 기준으로 다음 획득 시간 계산 (content script용)
+function calculateFromLastLogForClock(logs, now) {
+    if (logs.length === 0) {
+        // 로그가 없으면 현재 시간부터 1시간 후
+        return new Date(now.getTime() + 60 * 60 * 1000);
+    }
+    
+    // 가장 최근 로그 찾기
+    const lastLog = logs[0];
+    const lastLogTime = new Date(lastLog.timestamp);
+    
+    // 현재 시간의 분을 마지막 로그의 분으로 설정
+    const nextTime = new Date(now);
+    nextTime.setMinutes(lastLogTime.getMinutes());
+    nextTime.setSeconds(0);
+    nextTime.setMilliseconds(0);
+    
+    // 현재 시간보다 이전이면 다음 시간으로 설정
+    if (nextTime <= now) {
+        nextTime.setHours(nextTime.getHours() + 1);
+    }
+    
+    return nextTime;
+}
+
+// 시계 표시 업데이트
+async function updateClockDisplay() {
+    if (!isLivePage() || !clockToggle) return;
+    
+    try {
+        const nextPowerTime = await calculateNextPowerTimeForClock();
+        const now = new Date();
+        const diffMs = nextPowerTime.getTime() - now.getTime();
+        
+        let timeText;
+        if (diffMs <= 0) {
+            timeText = '곧';
+        } else {
+            const diffMinutes = Math.floor(diffMs / (1000 * 60));
+            const hours = Math.floor(diffMinutes / 60);
+            const minutes = diffMinutes % 60;
+            
+            if (hours > 0) {
+                timeText = `${hours}:${minutes.toString().padStart(2, '0')}`;
+            } else {
+                timeText = `${minutes}분`;
+            }
+        }
+        
+        createClockBadge(timeText);
+    } catch (error) {
+        console.error('시계 표시 업데이트 실패:', error);
+    }
+}
+
+// 시계 뱃지 생성 함수
+function createClockBadge(timeText) {
+    // 기존 시계 뱃지 제거
+    if (lastClockNode && lastClockNode.parentNode) {
+        lastClockNode.parentNode.removeChild(lastClockNode);
+        lastClockNode = null;
+    }
+
+    // 파워 뱃지가 있는지 확인하고 그 오른쪽에 시계 배치
+    const powerBadge = document.querySelector(".chzzk_power_badge");
+    if (!powerBadge || !powerBadge.parentNode) return;
+
+    // 시계 표시 생성 및 삽입
+    const clockBadge = document.createElement("button");
+    clockBadge.type = "button";
+    clockBadge.setAttribute("tabindex", "-1");
+    clockBadge.style.display = clockToggle ? "inline-flex" : "none";
+    clockBadge.style.alignItems = "center";
+    clockBadge.style.justifyContent = "center";
+    clockBadge.style.height = "24px";
+    clockBadge.style.minWidth = "24px";
+    const colors = getThemeColors();
+    clockBadge.style.background = colors.bg;
+    clockBadge.style.border = "none";
+    clockBadge.style.padding = "0 2px";
+    clockBadge.style.marginLeft = "2px"; // 파워 뱃지와 약간의 간격
+    clockBadge.style.fontFamily = "inherit";
+    clockBadge.style.fontWeight = "bold";
+    clockBadge.style.fontSize = "11px";
+    clockBadge.style.color = colors.fg;
+    clockBadge.style.cursor = "pointer";
+    clockBadge.addEventListener("mouseenter", () => {
+        clockBadge.style.cursor = "pointer";
+        clockBadge.style.background = colors.hoverBg;
+    });
+    clockBadge.addEventListener("mouseleave", () => {
+        clockBadge.style.cursor = "pointer";
+        clockBadge.style.background = colors.bg;
+    });
+    clockBadge.innerHTML = `${CLOCK_ICON_SVG}<span style="margin-left:4px;vertical-align:middle;">${timeText}</span>`;
+    clockBadge.classList.add("chzzk_clock_badge");
+    // 라이트 모드에서 아이콘 색상은 텍스트 색상과 동기화
+    const svg = clockBadge.querySelector("svg");
+    if (svg) {
+        svg.style.color = colors.fg;
+        svg.setAttribute("fill", "currentColor");
+    }
+
+    // 파워 뱃지 바로 오른쪽에 삽입
+    powerBadge.parentNode.insertBefore(clockBadge, powerBadge.nextSibling);
+    lastClockNode = clockBadge;
+}
 
 async function getViewPowerAmountBySubscription(channelId) {
     try {
@@ -929,6 +1086,8 @@ async function clickPowerButtonIfExists() {
                 const amountToLog = await getViewPowerAmountBySubscription(channelId);
                 await savePowerLog(channelId, amountToLog, "view");
                 lastViewLogTimestampMs = now;
+                // 팝업에 파워 획득 알림
+                chrome.runtime.sendMessage({ action: 'powerAcquired' });
             }
         } catch (e) {
             // 스토리지 조회 실패 시에는 기존 동작 유지
@@ -940,6 +1099,8 @@ async function clickPowerButtonIfExists() {
                 const amountToLog = await getViewPowerAmountBySubscription(channelId);
                 await savePowerLog(channelId, amountToLog, "view");
                 lastViewLogTimestampMs = now;
+                // 팝업에 파워 획득 알림
+                chrome.runtime.sendMessage({ action: 'powerAcquired' });
             }
         }
         fetchAndUpdatePowerAmount();
@@ -951,5 +1112,9 @@ setInterval(() => {
     const badgeExists = document.querySelector(".chzzk_power_badge");
     if (!badgeExists) {
         updatePowerCountBadge();
+    }
+    const clockExists = document.querySelector(".chzzk_clock_badge");
+    if (!clockExists && clockToggle) {
+        updateClockDisplay();
     }
 }, 1000);

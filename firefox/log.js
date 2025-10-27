@@ -6,6 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadLogs();
     setupFilters();
     setupThemeToggle();
+    setupImportExport();
     const clearBtn = document.getElementById('clearLogsBtn');
     if (clearBtn) {
         clearBtn.addEventListener('click', clearAllLogs);
@@ -725,4 +726,113 @@ async function clearAllLogs() {
             showToast('로그 삭제에 실패했습니다.', 'error');
         }
     }
+}
+
+// Import/Export 기능 설정
+function setupImportExport() {
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const importFile = document.getElementById('importFile');
+
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportLogs);
+    }
+
+    if (importBtn) {
+        importBtn.addEventListener('click', () => {
+            importFile.click();
+        });
+    }
+
+    if (importFile) {
+        importFile.addEventListener('change', handleImportFile);
+    }
+}
+
+// 로그 내보내기
+function exportLogs() {
+    try {
+        const exportData = {
+            version: '1.0',
+            exportDate: new Date().toISOString(),
+            logs: allLogs
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `chzzk_power_logs_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        showToast(`로그 ${allLogs.length}개가 내보내기되었습니다.`, 'success');
+    } catch (error) {
+        console.error('로그 내보내기 실패:', error);
+        showToast('로그 내보내기에 실패했습니다.', 'error');
+    }
+}
+
+// 파일 가져오기 처리
+function handleImportFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const importData = JSON.parse(e.target.result);
+            
+            // 데이터 유효성 검사
+            if (!importData.logs || !Array.isArray(importData.logs)) {
+                throw new Error('잘못된 파일 형식입니다.');
+            }
+
+            // 기존 로그와 병합할지 확인
+            if (allLogs.length > 0) {
+                const shouldOverwrite = confirm(
+                    `현재 ${allLogs.length}개의 로그가 있습니다.\n` +
+                    `가져올 로그: ${importData.logs.length}개\n\n` +
+                    `확인하면 기존 로그를 모두 덮어쓰고 새 로그로 교체합니다.\n` +
+                    `취소하면 가져오기를 취소합니다.`
+                );
+
+                if (!shouldOverwrite) {
+                    showToast('가져오기가 취소되었습니다.', 'info');
+                    return;
+                }
+            }
+
+            allLogs = importData.logs;
+
+            // 로그 정렬 (최신순)
+            allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+            // 저장소에 저장 (Firefox 버전)
+            browser.storage.local.set({ powerLogs: allLogs }).then(() => {
+                updateStats();
+                renderLogs();
+                showToast(`로그 ${importData.logs.length}개가 가져오기되었습니다.`, 'success');
+            }).catch((error) => {
+                throw new Error(error.message);
+            });
+
+        } catch (error) {
+            console.error('로그 가져오기 실패:', error);
+            showToast(`로그 가져오기에 실패했습니다: ${error.message}`, 'error');
+        }
+    };
+
+    reader.onerror = function() {
+        showToast('파일 읽기에 실패했습니다.', 'error');
+    };
+
+    reader.readAsText(file);
+    
+    // 파일 입력 초기화
+    event.target.value = '';
 }

@@ -213,6 +213,43 @@
             box-shadow: 0 0 0 3px rgba(42, 106, 255, 0.2);
         }
 
+        .import-export-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .import-export-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 14px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .import-export-btn:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-color);
+        }
+
+        .import-export-btn.export {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        .import-export-btn.export:hover {
+            background: #1e5ae6;
+        }
+
+        #importFile {
+            display: none;
+        }
+
         .logs-container {
             padding: 30px;
             max-height: 600px;
@@ -770,6 +807,11 @@
                     <option value="week">이번 주</option>
                     <option value="month">이번 달</option>
                 </select>
+            </div>
+            <div class="import-export-group">
+                <button class="import-export-btn export" id="exportBtn">내보내기</button>
+                <button class="import-export-btn" id="importBtn">가져오기</button>
+                <input type="file" id="importFile" accept=".json">
             </div>
             <button class="clear-logs" id="clearLogsBtn">로그 삭제</button>
             <button class="test-add" id="testAddBtn">테스트 추가</button>
