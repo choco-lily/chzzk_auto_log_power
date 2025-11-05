@@ -1296,8 +1296,9 @@ async function pollPredictionStatuses() {
                                 const option = (content.optionList || []).find(o => Number(o.optionNo) === Number(bet.selectedOptionNo));
                                 const participationBet = content.participation && typeof content.participation.bettingPowers === 'number' ? content.participation.bettingPowers : bet.bettingPowers;
                                 if (option && typeof option.distributionRate === "number" && typeof participationBet === 'number') {
-                                    const payout = Math.round(Math.abs(participationBet) * option.distributionRate);
-                                    // 새로운 로그 추가 대신 기존 prediction 로그 수정
+                                        const payout = Math.round(Math.abs(participationBet) * option.distributionRate);
+                                        const net = Math.max(0, Math.abs(payout) - Math.abs(participationBet));
+                                        // 새로운 로그 추가 대신 기존 prediction 로그 수정 (순이익 기준)
                                     try {
                                         const store = await chrome.storage.local.get(['powerLogs']);
                                         const logs = store.powerLogs || [];
@@ -1305,7 +1306,7 @@ async function pollPredictionStatuses() {
                                         for (let i = 0; i < logs.length; i++) {
                                             const l = logs[i];
                                             if (l && String(l.method||'').toLowerCase()==='prediction' && l.predictionId === bet.predictionId) {
-                                                logs[i] = { ...l, amount: Math.abs(payout) };
+                                                    logs[i] = { ...l, amount: net };
                                                 updated = true;
                                                 break;
                                             }

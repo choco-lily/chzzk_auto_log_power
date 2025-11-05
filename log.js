@@ -442,8 +442,9 @@ function addEventListeners() {
                 const selected = c.participation ? c.participation.selectedOptionNo : null;
                 const usedPower = c.participation ? c.participation.bettingPowers : null;
                 const wonPower = c.participation && typeof c.participation.winningPowers === 'number' ? c.participation.winningPowers : null;
+                const netWon = (typeof wonPower === 'number' ? wonPower : 0) - (typeof usedPower === 'number' ? usedPower : 0);
 
-                // 저장소와 불일치 시 즉시 저장소의 예측 로그 금액을 winningPowers로 덮어쓰기 (음수로 저장된 베팅 로그도 갱신)
+                // 저장소와 불일치 시 즉시 저장소의 예측 로그 금액을 (winningPowers - bettingPowers)로 덮어쓰기
                 if (wonPower != null && wonPower >= 1) {
                     try {
                         const store = await chrome.storage.local.get(['powerLogs']);
@@ -451,8 +452,9 @@ function addEventListeners() {
                         let updated = false;
                         for (let i = 0; i < logs.length; i++) {
                             const l = logs[i];
-                            if (l && String(l.method||'').toLowerCase()==='prediction' && l.predictionId === predictionId && typeof l.amount === 'number' && l.amount !== wonPower) {
-                                logs[i] = { ...l, amount: wonPower };
+                            const desired = Math.max(0, ((typeof wonPower==='number'?wonPower:0) - (typeof usedPower==='number'?usedPower:0)));
+                            if (l && String(l.method||'').toLowerCase()==='prediction' && l.predictionId === predictionId && typeof l.amount === 'number' && l.amount !== desired) {
+                                logs[i] = { ...l, amount: desired };
                                 updated = true;
                             }
                         }
@@ -497,7 +499,8 @@ function addEventListeners() {
                         <div style="font-weight:700;margin-bottom:8px;">${c.predictionTitle || '승부예측'}</div>
                         ${opts.map(renderOption).join('')}
                         ${usedPower!=null ? `<div style=\"margin-top:4px;color:#aaa;font-size:12px;display:flex;justify-content:flex-end;gap:6px;\">사용 통나무 파워 <b>${mk(usedPower)}</b></div>`:''}
-                        ${(wonPower!=null && wonPower>=1) ? `<div style=\"margin-top:2px;color:#25ae66;font-size:12px;display:flex;justify-content:flex-end;gap:6px;\">획득 통나무 파워 <b>${mk(wonPower)}</b></div>`:''}
+                        ${(netWon>=1) ? `<div style=\"margin-top:2px;color:#25ae66;font-size:12px;display:flex;justify-content:flex-end;gap:6px;\">획득 통나무 파워 <b>${mk(netWon)}</b></div>`:''}
+                        ${(wonPower!=null && wonPower>=1) ? `<div style=\"margin-top:2px;color:#aaa;font-size:12px;display:flex;justify-content:flex-end;gap:6px;\">합계 통나무 파워 <b>${mk(wonPower)}</b></div>`:''}
                     </div>`;
             } catch (err) {
                 container.style.display = 'block';
