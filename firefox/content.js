@@ -65,7 +65,7 @@ async function getChannelInfo(channelId) {
 }
 
 // 통나무 획득 로그 저장 함수
-async function savePowerLog(channelId, amount, method, testAmount = null) {
+async function savePowerLog(channelId, amount, method, testAmount = null, extra = null) {
     try {
         // 채널 정보 가져오기
         const channelInfo = await getChannelInfo(channelId);
@@ -79,6 +79,10 @@ async function savePowerLog(channelId, amount, method, testAmount = null) {
             amount: amount,
             method: method, // 'follow', 'view', 'claimType' 등
         };
+
+        if (extra && typeof extra === 'object') {
+            try { Object.assign(logEntry, extra); } catch (_) {}
+        }
 
         if (testAmount !== null) {
             if (method.toUpperCase() == "FOLLOW") {
@@ -142,6 +146,21 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
             // 시계가 없고 clockToggle이 true인 경우 생성
             updateClockDisplay();
         }
+    } else if (request.action === 'fetchPredictionDetail') {
+        (async () => {
+            try {
+                const { channelId, predictionId } = request;
+                if (!channelId || !predictionId) return sendResponse({ ok: false, error: 'missing params' });
+                const url = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/predictions/${predictionId}?fields=participation`;
+                const res = await fetch(url, { credentials: 'include' });
+                if (!res.ok) return sendResponse({ ok: false, status: res.status });
+                const json = await res.json();
+                sendResponse({ ok: true, data: json });
+            } catch (e) {
+                sendResponse({ ok: false, error: String(e) });
+            }
+        })();
+        return true; // async
     }
 });
 
@@ -1109,6 +1128,281 @@ function createClockBadge(timeText) {
     // 파워 뱃지 바로 오른쪽에 삽입
     powerBadge.parentNode.insertBefore(clockBadge, powerBadge.nextSibling);
     lastClockNode = clockBadge;
+}
+
+// ============================
+// 예측 참여(배팅) 추적 및 정산 (Firefox)
+// ============================
+
+const PREDICTION_BETS_KEY = "predictionBetsByChannel";
+
+startPredictionPerformanceObserver();
+// fetch 감지 (console log용)
+installFetchLogger();
+cleanupFinishedPredictions();
+startPredictionPoller();
+startPredictionLogDetailPoller();
+
+function startPredictionPerformanceObserver() {
+    try {
+        if (!('PerformanceObserver' in window)) return;
+        const observer = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            for (const e of entries) {
+                try {
+                    const url = e.name || '';
+                    if (
+                        typeof url === 'string' &&
+                        url.includes('/log-power/predictions/') &&
+                        url.endsWith('/participation')
+                    ) {
+                        const match = url.match(/channels\/([^\/]+)\/log-power\/predictions\/([^\/]+)\/participation/);
+                        const channelIdFromUrl = match ? match[1] : null;
+                        const predictionIdFromUrl = match ? match[2] : null;
+                        if (channelIdFromUrl && predictionIdFromUrl) {
+                            fetchParticipationAndRecord(channelIdFromUrl, predictionIdFromUrl);
+                        }
+                    }
+                } catch (_) {}
+            }
+        });
+        observer.observe({ type: 'resource', buffered: true });
+    } catch (e) {
+        console.error('startPredictionPerformanceObserver error', e);
+    }
+}
+
+// fetch 감지: prediction 참여 요청이면 콘솔만 출력
+function installFetchLogger() {
+    try {
+        const originalFetch = window.fetch;
+        window.fetch = function(input, init) {
+            try {
+                const url = typeof input === 'string' ? input : (input && input.url) || '';
+                const method = (init && init.method) || (typeof input !== 'string' && input && input.method) || 'GET';
+                if (
+                    typeof url === 'string' &&
+                    method && method.toUpperCase() === 'POST' &&
+                    url.includes('/log-power/predictions/') &&
+                    url.endsWith('/participation')
+                ) {
+                    console.log('[치지직 통나무 파워 자동 획득][fetch] prediction 참여 감지:', url);
+                }
+            } catch (_) {}
+            return originalFetch.apply(this, arguments);
+        };
+    } catch (_) {}
+}
+
+// 시작 시 저장소에 남아있는 종료된 예측들 즉시 정리 (Firefox)
+async function cleanupFinishedPredictions() {
+    try {
+        const byChannelObj = await browser.storage.sync.get(PREDICTION_BETS_KEY);
+        const map = byChannelObj[PREDICTION_BETS_KEY] || {};
+        let changed = false;
+        for (const channelId of Object.keys(map)) {
+            const list = Array.isArray(map[channelId]) ? map[channelId] : [];
+            const pendingOnly = list.filter(b => (String(b.status || 'PENDING').toUpperCase()) === 'PENDING');
+            if (pendingOnly.length !== list.length) {
+                map[channelId] = pendingOnly;
+                changed = true;
+            }
+        }
+        if (changed) {
+            await browser.storage.sync.set({ [PREDICTION_BETS_KEY]: map });
+        }
+    } catch (_) {}
+}
+
+async function fetchParticipationAndRecord(channelId, predictionId) {
+    try {
+        // 서버 측 처리 여유 시간
+        await new Promise((r) => setTimeout(r, 3000));
+        const url = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/predictions/${predictionId}?fields=participation`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) return;
+        const json = await res.json();
+        const content = json && json.content;
+        if (!content || !content.participation) return;
+        const selectedOptionNo = content.participation.selectedOptionNo;
+        const bettingPowers = content.participation.bettingPowers;
+        if (typeof selectedOptionNo !== 'number' || typeof bettingPowers !== 'number') return;
+
+        const byChannelObj = await browser.storage.sync.get(PREDICTION_BETS_KEY);
+        const map = byChannelObj[PREDICTION_BETS_KEY] || {};
+        const list = Array.isArray(map[channelId]) ? map[channelId] : [];
+        const prev = list.find(b => b.predictionId === predictionId);
+        if (prev) {
+            try {
+                const store = await browser.storage.local.get(['powerLogs']);
+                const logs = store.powerLogs || [];
+                const idx = logs.findIndex(l => l.channelId === channelId && String(l.method || '').toLowerCase() === 'prediction' && Number(l.amount) === -Math.abs(prev.bettingPowers));
+                if (idx !== -1) {
+                    logs.splice(idx, 1);
+                    await browser.storage.local.set({ powerLogs: logs });
+                }
+            } catch (_) {}
+        }
+
+        const bet = {
+            predictionId,
+            selectedOptionNo,
+            bettingPowers,
+            status: 'PENDING',
+            createdAt: Date.now(),
+        };
+        await recordPredictionBet(channelId, bet);
+        await savePowerLog(channelId, -Math.abs(bettingPowers), 'prediction', null, {
+            predictionId
+        });
+    } catch (e) {}
+}
+
+async function recordPredictionBet(channelId, bet) {
+    try {
+        const byChannelObj = await browser.storage.sync.get(PREDICTION_BETS_KEY);
+        const map = byChannelObj[PREDICTION_BETS_KEY] || {};
+        const list = Array.isArray(map[channelId]) ? map[channelId] : [];
+        const filtered = list.filter((b) => b.predictionId !== bet.predictionId);
+        map[channelId] = [...filtered, bet];
+        await browser.storage.sync.set({ [PREDICTION_BETS_KEY]: map });
+    } catch (e) {
+        console.error("recordPredictionBet error", e);
+    }
+}
+
+let predictionPollerTimer = null;
+function startPredictionPoller() {
+    if (predictionPollerTimer) return;
+    predictionPollerTimer = setInterval(pollPredictionStatuses, 30 * 1000);
+    pollPredictionStatuses();
+}
+
+async function pollPredictionStatuses() {
+    try {
+        const byChannelObj = await browser.storage.sync.get(PREDICTION_BETS_KEY);
+        const map = byChannelObj[PREDICTION_BETS_KEY] || {};
+        const channelIds = Object.keys(map);
+        for (const channelId of channelIds) {
+            const bets = Array.isArray(map[channelId]) ? map[channelId] : [];
+            const pending = bets.filter((b) => b.status === "PENDING");
+            if (pending.length === 0) continue;
+
+            for (const bet of pending) {
+                try {
+                    const url = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/predictions/${bet.predictionId}?fields=participation`;
+                    const res = await fetch(url, { credentials: "include" });
+                    if (!res.ok) continue;
+                    const json = await res.json();
+                    const content = json && json.content;
+                    if (!content || !content.status) continue;
+                    const status = String(content.status || "").toUpperCase();
+                    if (status === "CANCELLED" || status === "COMPLETED") {
+                        bet.status = status;
+                        if (status === "COMPLETED") {
+                            const winningOptionNo = content.winningOptionNo;
+                            if (Number(winningOptionNo) === Number(bet.selectedOptionNo)) {
+                                const option = (content.optionList || []).find(o => Number(o.optionNo) === Number(bet.selectedOptionNo));
+                                const participationBet = content.participation && typeof content.participation.bettingPowers === 'number' ? content.participation.bettingPowers : bet.bettingPowers;
+                                if (option && typeof option.distributionRate === "number" && typeof participationBet === 'number') {
+                                    const payout = Math.round(Math.abs(participationBet) * option.distributionRate);
+                                    // 기존 prediction 로그 수정
+                                    try {
+                                        const store = await browser.storage.local.get(['powerLogs']);
+                                        const logs = store.powerLogs || [];
+                                        let updated = false;
+                                        for (let i = 0; i < logs.length; i++) {
+                                            const l = logs[i];
+                                            if (l && String(l.method||'').toLowerCase()==='prediction' && l.predictionId === bet.predictionId) {
+                                                logs[i] = { ...l, amount: Math.abs(payout) };
+                                                updated = true;
+                                                break;
+                                            }
+                                        }
+                                        if (updated) {
+                                            await browser.storage.local.set({ powerLogs: logs });
+                                        }
+                                    } catch (_) {}
+                                }
+                            }
+                        }
+                        if (status === 'CANCELLED') {
+                            try {
+                                const store = await browser.storage.local.get(['powerLogs']);
+                                const logs = store.powerLogs || [];
+                                const idx = logs.findIndex(l => l.channelId === channelId && String(l.method || '').toLowerCase() === 'prediction' && Number(l.amount) === -Math.abs(bet.bettingPowers));
+                                if (idx !== -1) {
+                                    logs.splice(idx, 1);
+                                    await browser.storage.local.set({ powerLogs: logs });
+                                }
+                            } catch (_) {}
+                        }
+                    }
+                } catch (err) {}
+            }
+
+            const updatedList = bets.filter(b => b.status === "PENDING");
+            map[channelId] = updatedList;
+            await browser.storage.sync.set({ [PREDICTION_BETS_KEY]: map });
+        }
+    } catch (e) {}
+}
+
+// 로그에 저장된 prediction 항목의 상세 정보를 최종 상태가 되면 채워 넣는 폴러 (Firefox)
+let predictionLogDetailTimer = null;
+function startPredictionLogDetailPoller() {
+    if (predictionLogDetailTimer) return;
+    predictionLogDetailTimer = setInterval(syncFinalizedPredictionLogDetails, 30 * 1000);
+    syncFinalizedPredictionLogDetails();
+}
+
+async function syncFinalizedPredictionLogDetails() {
+    try {
+        const store = await browser.storage.local.get(['powerLogs']);
+        const logs = store.powerLogs || [];
+        const targets = logs.filter(l => String(l.method||'').toLowerCase()==='prediction' && l.predictionId && (!l.predictionStatus || String(l.predictionStatus).toUpperCase()==='PENDING'));
+        if (targets.length === 0) return;
+        for (const log of targets) {
+            const channelId = log.channelId;
+            const predictionId = log.predictionId;
+            if (!channelId || !predictionId) continue;
+            try {
+                const url = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/predictions/${predictionId}?fields=participation`;
+                const res = await fetch(url, { credentials: 'include' });
+                if (!res.ok) continue;
+                const data = await res.json();
+                const c = data && data.content ? data.content : null;
+                if (!c || !c.status) continue;
+                const status = String(c.status).toUpperCase();
+                if (status === 'EXPIRED' || status === 'CANCELLED' || status === 'COMPLETED') {
+                    const selectedOptionNo = c.participation ? c.participation.selectedOptionNo : undefined;
+                    const bettingPowers = c.participation ? c.participation.bettingPowers : undefined;
+                    const participationStatus = c.participation && c.participation.status ? String(c.participation.status).toUpperCase() : undefined;
+                    const winningPowers = c.participation && typeof c.participation.winningPowers === 'number' ? c.participation.winningPowers : undefined;
+                    let distributionRate;
+                    if (selectedOptionNo != null && Array.isArray(c.optionList)) {
+                        const opt = c.optionList.find(o => Number(o.optionNo) === Number(selectedOptionNo));
+                        if (opt && typeof opt.distributionRate === 'number') distributionRate = opt.distributionRate;
+                    }
+                    for (const l of logs) {
+                        if (l.predictionId === predictionId && String(l.method||'').toLowerCase()==='prediction') {
+                            l.predictionStatus = status;
+                            if (selectedOptionNo != null) l.participationSelectedOptionNo = selectedOptionNo;
+                            if (typeof bettingPowers === 'number') l.participationBettingPowers = bettingPowers;
+                            if (typeof distributionRate === 'number') l.distributionRate = distributionRate;
+                            if (c.predictionTitle) l.predictionTitle = c.predictionTitle;
+                            if (participationStatus === 'WON' && typeof winningPowers === 'number') {
+                                if (typeof l.amount === 'number' && l.amount > 0 && l.amount !== winningPowers) {
+                                    l.amount = winningPowers;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (_) { }
+        }
+        await browser.storage.local.set({ powerLogs: logs });
+    } catch (_) {}
 }
 
 // 1초마다 badge 감시 및 복구

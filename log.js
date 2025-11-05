@@ -6,6 +6,18 @@ document.addEventListener('DOMContentLoaded', function() {
     loadLogs();
     setupFilters();
     setupThemeToggle();
+    // 예측 별도 집계 설정 로드
+    chrome.storage.sync.get(['splitPredictionStats'], (r) => {
+        const cb = document.getElementById('splitPredictionStats');
+        const val = !!r.splitPredictionStats;
+        if (cb) {
+            cb.checked = val;
+            cb.addEventListener('change', () => {
+                chrome.storage.sync.set({ splitPredictionStats: cb.checked });
+                updateStats();
+            });
+        }
+    });
     setupImportExport();
     const clearBtn = document.getElementById('clearLogsBtn');
     if (clearBtn) {
@@ -16,6 +28,31 @@ document.addEventListener('DOMContentLoaded', function() {
         testAddBtn.addEventListener('click', () => openTestLogModal(0));
     }
 });
+// 치지직 탭을 통해 content script 프록시로 상세를 가져오기 (CORS 회피)
+async function proxyFetchPredictionDetail(channelId, predictionId) {
+    const patterns = ["https://chzzk.naver.com/*", "http://chzzk.naver.com/*"];
+    const tabs = await new Promise((resolve) => {
+        try {
+            chrome.tabs.query({ url: patterns }, (ts) => resolve(ts || []));
+        } catch (_) {
+            resolve([]);
+        }
+    });
+    for (const tab of tabs) {
+        const resp = await new Promise((resolve) => {
+            try {
+                chrome.tabs.sendMessage(tab.id, { action: 'fetchPredictionDetail', channelId, predictionId }, (r) => {
+                    if (chrome.runtime && chrome.runtime.lastError) return resolve(null);
+                    resolve(r || null);
+                });
+            } catch (_) {
+                resolve(null);
+            }
+        });
+        if (resp && resp.ok) return resp.data;
+    }
+    throw new Error('프록시 실패(치지직 탭 연결 불가)');
+}
 
 // 테마 토글 설정
 function setupThemeToggle() {
@@ -155,6 +192,7 @@ function updatePeriodStats() {
         const logDate = new Date(log.timestamp);
         return logDate >= today;
     });
+    const todayPred = todayLogs.filter(l => String(l.method||'').toLowerCase()==='prediction');
     const todayCount = todayLogs.length;
     const todayPower = todayLogs.reduce((sum, log) => {
         const amount = typeof log.amount === 'number' ? log.amount : 0;
@@ -171,6 +209,7 @@ function updatePeriodStats() {
         const logDate = new Date(log.timestamp);
         return logDate >= startOfWeek;
     });
+    const weekPred = weekLogs.filter(l => String(l.method||'').toLowerCase()==='prediction');
     const weekCount = weekLogs.length;
     const weekPower = weekLogs.reduce((sum, log) => {
         const amount = typeof log.amount === 'number' ? log.amount : 0;
@@ -184,6 +223,7 @@ function updatePeriodStats() {
         const logDate = new Date(log.timestamp);
         return logDate >= startOfMonth;
     });
+    const monthPred = monthLogs.filter(l => String(l.method||'').toLowerCase()==='prediction');
     const monthCount = monthLogs.length;
     const monthPower = monthLogs.reduce((sum, log) => {
         const amount = typeof log.amount === 'number' ? log.amount : 0;
@@ -198,6 +238,7 @@ function updatePeriodStats() {
         return sum + amount;
     }, 0);
     const allChannels = new Set(allLogs.map(log => log.channelId)).size;
+    const allPred = allLogs.filter(l => String(l.method||'').toLowerCase()==='prediction');
     
     // 날짜 범위 설정
     const todayDate = now.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
@@ -213,26 +254,62 @@ function updatePeriodStats() {
         allDateRange = `${firstLog.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} ~ ${lastLog.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`;
     }
     
-    // DOM 업데이트
-    document.getElementById('todayCount').textContent = `${todayCount}회`;
-    document.getElementById('todayPower').textContent = `${todayPower.toLocaleString()}개`;
-    document.getElementById('todayChannels').textContent = `${todayChannels}개`;
-    document.getElementById('todayDate').textContent = todayDate;
-    
-    document.getElementById('weekCount').textContent = `${weekCount}회`;
-    document.getElementById('weekPower').textContent = `${weekPower.toLocaleString()}개`;
-    document.getElementById('weekChannels').textContent = `${weekChannels}개`;
-    document.getElementById('weekDate').textContent = `${weekStartDate} ~ ${weekEndDate}`;
-    
-    document.getElementById('monthCount').textContent = `${monthCount}회`;
-    document.getElementById('monthPower').textContent = `${monthPower.toLocaleString()}개`;
-    document.getElementById('monthChannels').textContent = `${monthChannels}개`;
-    document.getElementById('monthDate').textContent = monthDate;
-    
-    document.getElementById('allCount').textContent = `${allCount}회`;
-    document.getElementById('allPower').textContent = `${allPower.toLocaleString()}개`;
-    document.getElementById('allChannels').textContent = `${allChannels}개`;
-    document.getElementById('allDate').textContent = allDateRange;
+    // 예측 별도 집계 및 메인 통계 업데이트
+    chrome.storage.sync.get(['splitPredictionStats'], (r) => {
+        const enabled = !!r.splitPredictionStats;
+        const notPred = (l) => String(l.method||'').toLowerCase()!=='prediction';
+        const tl = enabled ? todayLogs.filter(notPred) : todayLogs;
+        const wl = enabled ? weekLogs.filter(notPred) : weekLogs;
+        const ml = enabled ? monthLogs.filter(notPred) : monthLogs;
+        const al = enabled ? allLogs.filter(notPred) : allLogs;
+
+        const tCount = tl.length;
+        const tPower = tl.reduce((s,l)=>s+(typeof l.amount==='number'?l.amount:0),0);
+        const tChannels = new Set(tl.map(l=>l.channelId)).size;
+        const wCount = wl.length;
+        const wPower = wl.reduce((s,l)=>s+(typeof l.amount==='number'?l.amount:0),0);
+        const wChannels = new Set(wl.map(l=>l.channelId)).size;
+        const mCount = ml.length;
+        const mPower = ml.reduce((s,l)=>s+(typeof l.amount==='number'?l.amount:0),0);
+        const mChannels = new Set(ml.map(l=>l.channelId)).size;
+        const aCount = al.length;
+        const aPower = al.reduce((s,l)=>s+(typeof l.amount==='number'?l.amount:0),0);
+        const aChannels = new Set(al.map(l=>l.channelId)).size;
+
+        document.getElementById('todayCount').textContent = `${tCount}회`;
+        document.getElementById('todayPower').textContent = `${tPower.toLocaleString()}개`;
+        document.getElementById('todayChannels').textContent = `${tChannels}개`;
+        document.getElementById('todayDate').textContent = todayDate;
+
+        document.getElementById('weekCount').textContent = `${wCount}회`;
+        document.getElementById('weekPower').textContent = `${wPower.toLocaleString()}개`;
+        document.getElementById('weekChannels').textContent = `${wChannels}개`;
+        document.getElementById('weekDate').textContent = `${weekStartDate} ~ ${weekEndDate}`;
+
+        document.getElementById('monthCount').textContent = `${mCount}회`;
+        document.getElementById('monthPower').textContent = `${mPower.toLocaleString()}개`;
+        document.getElementById('monthChannels').textContent = `${mChannels}개`;
+        document.getElementById('monthDate').textContent = monthDate;
+
+        document.getElementById('allCount').textContent = `${aCount}회`;
+        document.getElementById('allPower').textContent = `${aPower.toLocaleString()}개`;
+        document.getElementById('allChannels').textContent = `${aChannels}개`;
+        document.getElementById('allDate').textContent = allDateRange;
+
+        const setLine = (id, arr) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            if (!enabled) { el.style.display = 'none'; return; }
+            const count = arr.length;
+            const power = arr.reduce((s, l) => s + (typeof l.amount==='number'? l.amount: 0), 0);
+            el.textContent = `승부예측: 횟수 ${count.toLocaleString()}회 / 통나무 ${power.toLocaleString()}개`;
+            el.style.display = 'block';
+        };
+        setLine('todayPredLine', todayPred);
+        setLine('weekPredLine', weekPred);
+        setLine('monthPredLine', monthPred);
+        setLine('allPredLine', allPred);
+    });
 }
 
 // 로그 렌더링
@@ -270,6 +347,8 @@ function renderLogs() {
             else if (amt === 200) methodText = '시청 - 2티어 구독';
         }
         
+        const isPrediction = String(log.method || '').toLowerCase() === 'prediction';
+        const detailsBtn = isPrediction && log.predictionId ? `<button class="detail-btn" data-channel-id="${log.channelId}" data-prediction-id="${log.predictionId}">상세</button>` : '';
         return `
             <div class="log-item" data-log-index="${filteredLogs.indexOf(log)}">
                 <img src="${log.channelImageUrl || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjQiIGN5PSIyNCIgcj0iMjQiIGZpbGw9IiNFMkU4RjAiLz4KPHN2ZyB4PSIxMiIgeT0iMTIiIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj4KPHBhdGggZD0iTTEyIDJDMTMuMSAyIDE0IDIuOSAxNCA0VjEwQzE0IDExLjEgMTMuMSAxMiAxMiAxMkMxMC45IDEyIDEwIDExLjEgMTAgMTBWNFMxMC45IDIgMTIgMloiIGZpbGw9IiM5Q0EzQUYiLz4KPHBhdGggZD0iTTEyIDE0QzEzLjEgMTQgMTQgMTQuOSAxNCAxNlYyMEMxNCAyMS4xIDEzLjEgMjIgMTIgMjJDMTAuOSAyMiAxMCAyMS4xIDEwIDIwVjE2QzEwIDE0LjkgMTAuOSAxNCAxMiAxNFoiIGZpbGw9IiM5Q0EzQUYiLz4KPC9zdmc+Cjwvc3ZnPg=='}" 
@@ -278,15 +357,22 @@ function renderLogs() {
                     <div class="channel-name">
                         <a href="https://chzzk.naver.com/${log.channelId}" target="_blank" class="channel-link">
                             ${log.channelName}${log.verifiedMark ? ' <img src="https://ssl.pstatic.net/static/nng/glive/resource/p/static/media/icon_official.a53d1555f8f4796d7862.png" alt="인증" style="width:16px;height:16px;vertical-align:middle;margin-left:2px;">' : ''}
-                        </a>
+                        </a> ${detailsBtn}
                     </div>
                     <div class="log-details">
                         <span class="method-badge ${methodClass}">${methodText}</span>
                         <span class="timestamp">${formattedDate}</span>
                     </div>
+                    ${isPrediction ? `<div class="prediction-details" data-for="${log.predictionId}" style="display:none;margin-top:8px;"></div>` : ''}
                 </div>
                 <div class="log-actions">
-                    <div class="amount">+${typeof log.amount === 'number' ? log.amount.toLocaleString() : log.amount}</div>
+                    ${(() => {
+                        const val = typeof log.amount === 'number' ? log.amount : Number(log.amount) || 0;
+                        const sign = val < 0 ? '-' : '+';
+                        const cls = val < 0 ? 'amount amount-neg' : 'amount amount-pos';
+                        const absVal = Math.abs(val);
+                        return `<div class="${cls}">${sign}${absVal.toLocaleString()}</div>`;
+                    })()}
                     <div class="action-buttons">
                         <button class="edit-btn" data-log-index="${filteredLogs.indexOf(log)}">수정</button>
                         <button class="delete-btn" data-log-index="${filteredLogs.indexOf(log)}">삭제</button>
@@ -325,6 +411,100 @@ function addEventListeners() {
             openTestLogModal(logIndex);
         });
     });
+    // 승부예측 상세 버튼
+    document.querySelectorAll('.detail-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const channelId = e.currentTarget.getAttribute('data-channel-id');
+            const predictionId = e.currentTarget.getAttribute('data-prediction-id');
+            if (!channelId || !predictionId) return;
+            const container = e.currentTarget.closest('.log-item').querySelector(`.prediction-details[data-for="${predictionId}"]`);
+            if (!container) return;
+            // 토글: 이미 열려있으면 닫고 반환 (추가 요청 없음)
+            if (container.style.display !== 'none' && container.innerHTML && container.innerHTML.trim() !== '') {
+                container.style.display = 'none';
+                return;
+            }
+            try {
+                container.style.display = 'block';
+                container.innerHTML = '<div style="color:#aaa;font-size:12px;">불러오는 중...</div>';
+                // 우선 활성 Chzzk 탭의 content script에 프록시 요청 (CORS 회피)
+                const data = await proxyFetchPredictionDetail(channelId, predictionId);
+                const c = data && data.content ? data.content : null;
+                if (!c) throw new Error('데이터 없음');
+                const status = String(c.status || '').toUpperCase();
+                if (!(status === 'EXPIRED' || status === 'CANCELLED' || status === 'COMPLETED')) {
+                    container.innerHTML = '<div style="color:#aaa;font-size:12px;">참여 마감 전까지는 확인이 불가능합니다.</div>';
+                    return;
+                }
+                const opts = Array.isArray(c.optionList) ? c.optionList : [];
+                const mk = (n) => typeof n === 'number' ? n.toLocaleString() : n;
+                const mkNum = (n) => typeof n === 'number' ? n.toLocaleString() : n;
+                const selected = c.participation ? c.participation.selectedOptionNo : null;
+                const usedPower = c.participation ? c.participation.bettingPowers : null;
+                const wonPower = c.participation && typeof c.participation.winningPowers === 'number' ? c.participation.winningPowers : null;
+
+                // 저장소와 불일치 시 즉시 저장소의 예측 로그 금액을 winningPowers로 덮어쓰기 (음수로 저장된 베팅 로그도 갱신)
+                if (wonPower != null && wonPower >= 1) {
+                    try {
+                        const store = await chrome.storage.local.get(['powerLogs']);
+                        const logs = store.powerLogs || [];
+                        let updated = false;
+                        for (let i = 0; i < logs.length; i++) {
+                            const l = logs[i];
+                            if (l && String(l.method||'').toLowerCase()==='prediction' && l.predictionId === predictionId && typeof l.amount === 'number' && l.amount !== wonPower) {
+                                logs[i] = { ...l, amount: wonPower };
+                                updated = true;
+                            }
+                        }
+                        if (updated) {
+                            await chrome.storage.local.set({ powerLogs: logs });
+                            // 메모리 데이터도 최신화
+                            allLogs = logs.slice();
+                            applyFilters();
+                            updateStats();
+                            renderLogs();
+                        }
+                    } catch (_) {}
+                }
+                const renderOption = (o) => {
+                    const pct = typeof o.percentage === 'number' ? o.percentage : Math.round((o.totalLogPowers || 0) / Math.max(1, opts.reduce((s,x)=>s+(x.totalLogPowers||0),0)) * 100);
+                    const isSelected = Number(o.optionNo)===Number(selected);
+                    const isWinner = Number(o.optionNo)===Number(c.winningOptionNo);
+                    const hasWinner = c.winningOptionNo != null;
+                    const selectColor = isSelected ? (hasWinner ? (isWinner ? '#25ae66' : '#e23c3c') : '#25ae66') : null; // green if win, red if lose, black if no winner
+                    const borderCss = isSelected ? `1px solid ${selectColor}` : '1px solid var(--border-color)';
+                    const barColor = isWinner ? '#25ae66' : ('#2a6aff');
+                    return `
+                        <div style="border:${borderCss};border-radius:8px;padding:10px;margin:8px 0;${isWinner?`background:#0f2f23 url('https://ssl.pstatic.net/static/nng/glive/icon/power/prediction_power_win.png') no-repeat right 0px top 0px / 100px;`:''}">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                                <div style="font-weight:700;">${o.optionText || ''}</div>
+                                <div style="font-weight:800;">${pct}%</div>
+                            </div>
+                            <div style="height:6px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;">
+                                <div style="width:${pct}%;height:100%;background:${barColor};"></div>
+                            </div>
+                            <div style="display:flex;gap:12px;color:#aaa;font-size:12px;margin-top:6px;align-items:center;">
+                                <span>👥 ${mk(o.participantCount)}</span>
+                                <span>🪵 ${mkNum(o.totalLogPowers)}</span>
+                                <span>⚖️ 1:${o.distributionRate ?? '-'}</span>
+                            </div>
+                        </div>`;
+                };
+                const statusBanner = (status === 'EXPIRED') ? `<div style=\"margin:-2px 0 6px 0;color:#ffcc00;font-size:12px;\">아직 승부예측이 진행중입니다.</div>` : '';
+                container.innerHTML = `
+                    <div style="border:1px solid var(--border-color);border-radius:10px;padding:10px;">
+                        ${statusBanner}
+                        <div style="font-weight:700;margin-bottom:8px;">${c.predictionTitle || '승부예측'}</div>
+                        ${opts.map(renderOption).join('')}
+                        ${usedPower!=null ? `<div style=\"margin-top:4px;color:#aaa;font-size:12px;display:flex;justify-content:flex-end;gap:6px;\">사용 통나무 파워 <b>${mk(usedPower)}</b></div>`:''}
+                        ${(wonPower!=null && wonPower>=1) ? `<div style=\"margin-top:2px;color:#25ae66;font-size:12px;display:flex;justify-content:flex-end;gap:6px;\">획득 통나무 파워 <b>${mk(wonPower)}</b></div>`:''}
+                    </div>`;
+            } catch (err) {
+                container.style.display = 'block';
+                container.innerHTML = `<div style=\"color:#f66;font-size:12px;\">상세 정보를 불러오지 못했습니다. 치지직 라이브 탭을 하나 열어둔 뒤 다시 시도해주세요.<br>(${err && err.message ? err.message : err})</div>`;
+            }
+        });
+    });
 }
 
 // 방식별 클래스 반환
@@ -334,6 +514,7 @@ function getMethodClass(method) {
         case 'follow': return 'method-follow';
         case 'view': return 'method-view';
         case 'remember': return 'method-remember';
+        case 'prediction': return 'method-prediction';
         default: return method;
     }
 }
@@ -345,6 +526,7 @@ function getMethodText(method) {
         case 'follow': return '팔로우';
         case 'view': return '시청';
         case 'remember': return '기억';
+        case 'prediction': return '승부예측';
         default: return '기타';
     }
 }
@@ -474,13 +656,14 @@ function editLog(filteredIndex) {
                         ${(() => {
                             const methodRaw = String(log.method || '').trim();
                             const methodUpper = methodRaw.toUpperCase();
-                            const known = ['VIEW','FOLLOW','OTHERS'];
+                            const known = ['VIEW','FOLLOW', 'PREDICTION', 'OTHERS'];
                             const hasUnknown = methodUpper && !known.includes(methodUpper);
                             return `
                                 <select id="editMethod" class="form-input">
                                     ${hasUnknown ? `<option value="Remember" selected>기억</option>` : ''}
                                     <option value="VIEW" ${methodUpper === 'VIEW' ? 'selected' : ''}>시청</option>
                                     <option value="FOLLOW" ${methodUpper === 'FOLLOW' ? 'selected' : ''}>팔로우</option>
+                                    <option value="PREDICTION" ${methodUpper === 'PREDICTION' ? 'selected' : ''}>승부예측</option>
                                     <option value="OTHERS" ${methodUpper === 'OTHERS' ? 'selected' : ''}>기타</option>
                                 </select>
                             `;
@@ -489,6 +672,10 @@ function editLog(filteredIndex) {
                     <div class="form-group">
                         <label>날짜/시간:</label>
                         <input type="datetime-local" id="editTimestamp" value="${new Date(new Date(log.timestamp).getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 19)}" class="form-input" step="1">
+                    </div>
+                    <div class="form-group" id="editPredictionGroup" style="display:${String(log.method||'').toUpperCase()==='PREDICTION' ? 'block' : 'none'};">
+                        <label>predictionId:</label>
+                        <input type="text" id="editPredictionId" value="${log.predictionId || ''}" class="form-input">
                     </div>
                 </div>
                 <div class="edit-modal-footer">
@@ -545,6 +732,17 @@ function addModalEventListeners() {
             saveLogEdit(logIndex);
         });
     }
+
+    // 방식 변경 시 predictionId 입력 토글
+    const methodSel = document.getElementById('editMethod');
+    if (methodSel) {
+        methodSel.addEventListener('change', () => {
+            const grp = document.getElementById('editPredictionGroup');
+            if (!grp) return;
+            const v = String(methodSel.value || '').toUpperCase();
+            grp.style.display = v === 'PREDICTION' ? 'block' : 'none';
+        });
+    }
 }
 
 // 편집 모달 닫기
@@ -590,6 +788,10 @@ function openTestLogModal(baseIndex) {
                         <label>method:</label>
                         <input type="text" id="testMethod" value="${base.method || 'view'}" class="form-input">
                     </div>
+                    <div class="form-group" id="testPredictionGroup" style="display:none;">
+                        <label>predictionId:</label>
+                        <input type="text" id="testPredictionId" value="" class="form-input">
+                    </div>
                     <div class="form-group">
                         <label>Image URL:</label>
                         <input type="text" id="testImageUrl" value="${base.channelImageUrl || ''}" class="form-input">
@@ -620,6 +822,16 @@ function openTestLogModal(baseIndex) {
     if (cancelBtn) cancelBtn.addEventListener('click', closeTestModal);
     const saveBtn = document.getElementById('saveTestModal');
     if (saveBtn) saveBtn.addEventListener('click', saveTestLog);
+    const methodInput = document.getElementById('testMethod');
+    if (methodInput) {
+        methodInput.addEventListener('input', () => {
+            const grp = document.getElementById('testPredictionGroup');
+            if (!grp) return;
+            const v = String(methodInput.value || '').toUpperCase();
+            grp.style.display = v === 'PREDICTION' ? 'block' : 'none';
+        });
+        methodInput.dispatchEvent(new Event('input'));
+    }
 }
 
 function closeTestModal() {
@@ -650,6 +862,10 @@ async function saveTestLog() {
             channelImageUrl: imageUrl,
             timestamp: isoTimestamp
         };
+        if (String(method).toUpperCase() === 'PREDICTION') {
+            const pid = (document.getElementById('testPredictionId')?.value || '').trim();
+            if (pid) newLog.predictionId = pid;
+        }
 
         // 앞쪽에 추가
         allLogs.unshift(newLog);
@@ -671,8 +887,9 @@ async function saveLogEdit(filteredIndex) {
         const log = filteredLogs[filteredIndex];
         const newChannelName = document.getElementById('editChannelName').value.trim();
         const newAmount = parseInt(document.getElementById('editAmount').value);
-        const newMethod = document.getElementById('editMethod').value.trim(); // VIEW | FOLLOW | OTHERS
+        const newMethod = document.getElementById('editMethod').value.trim(); // VIEW | FOLLOW | PREDICTION | OTHERS
         const newTimestamp = new Date(document.getElementById('editTimestamp').value).toISOString();
+        const newPredictionId = document.getElementById('editPredictionId') ? document.getElementById('editPredictionId').value.trim() : '';
         
         if (!newChannelName || !newAmount || !newMethod) {
             showToast('모든 필드를 입력해주세요.', 'error');
@@ -692,7 +909,8 @@ async function saveLogEdit(filteredIndex) {
                 channelName: newChannelName,
                 amount: newAmount,
                 method: newMethod,
-                timestamp: newTimestamp
+                timestamp: newTimestamp,
+                ...(String(newMethod).toUpperCase()==='PREDICTION' ? { predictionId: newPredictionId } : { predictionId: undefined })
             };
             
             await chrome.storage.local.set({ powerLogs: allLogs });

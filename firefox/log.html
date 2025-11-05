@@ -250,6 +250,31 @@
             display: none;
         }
 
+        /* 상세 버튼 스타일 */
+        .detail-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 8px;
+            padding: 2px 10px;
+            height: 22px;
+            border-radius: 999px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background .15s ease, border-color .15s ease, transform .05s ease;
+        }
+        .detail-btn:hover {
+            background: var(--bg-terTIARY);
+            border-color: var(--accent-color);
+        }
+        .detail-btn:active {
+            transform: translateY(1px);
+        }
+
         .logs-container {
             padding: 30px;
             max-height: 600px;
@@ -357,8 +382,9 @@
         .amount {
             font-weight: 700;
             font-size: 18px;
-            color: var(--success-color);
         }
+        .amount.amount-pos { color: var(--success-color); }
+        .amount.amount-neg { color: var(--danger-color); }
 
         .action-buttons {
             display: flex;
@@ -717,6 +743,7 @@
                             <span class="period-label">참여 채널:</span>
                             <span class="period-value" id="todayChannels">0개</span>
                         </div>
+                        <div class="period-sub" id="todayPredLine" style="display:none;"></div>
                     </div>
                 </div>
                 
@@ -738,6 +765,7 @@
                             <span class="period-label">참여 채널:</span>
                             <span class="period-value" id="weekChannels">0개</span>
                         </div>
+                        <div class="period-sub" id="weekPredLine" style="display:none;"></div>
                     </div>
                 </div>
                 
@@ -759,6 +787,7 @@
                             <span class="period-label">참여 채널:</span>
                             <span class="period-value" id="monthChannels">0개</span>
                         </div>
+                        <div class="period-sub" id="monthPredLine" style="display:none;"></div>
                     </div>
                 </div>
                 
@@ -780,6 +809,7 @@
                             <span class="period-label">참여 채널:</span>
                             <span class="period-value" id="allChannels">0개</span>
                         </div>
+                        <div class="period-sub" id="allPredLine" style="display:none;"></div>
                     </div>
                 </div>
             </div>
@@ -812,6 +842,10 @@
                 <button class="import-export-btn export" id="exportBtn">📤 내보내기</button>
                 <button class="import-export-btn" id="importBtn">📥 가져오기</button>
                 <input type="file" id="importFile" accept=".json">
+            </div>
+            <div class="filter-group" style="margin-left:auto;">
+                <label for="splitPredictionStats">승부예측 별도 집계</label>
+                <input type="checkbox" id="splitPredictionStats" />
             </div>
             <button class="clear-logs" id="clearLogsBtn">로그 삭제</button>
             <button class="test-add" id="testAddBtn">테스트 추가</button>
