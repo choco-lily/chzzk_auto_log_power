@@ -102,10 +102,17 @@ async function savePowerLog(channelId, amount, method, testAmount = null, extra 
         const result = await chrome.storage.local.get(["powerLogs"]);
         const logs = result.powerLogs || [];
 
-        // 새 로그 추가 (최대 1000개까지만 저장)
+        // 최대 저장 개수 설정 로드 (기본 10000)
+        let maxLogs = 10000;
+        try {
+            const s = await chrome.storage.sync.get(["maxLogs"]);
+            if (s && typeof s.maxLogs === 'number' && s.maxLogs > 0) maxLogs = Math.floor(s.maxLogs);
+        } catch (_) {}
+
+        // 새 로그 추가 (최대 maxLogs 개까지만 저장)
         logs.unshift(logEntry);
-        if (logs.length > 1000) {
-            logs.splice(1000);
+        if (logs.length > maxLogs) {
+            logs.splice(maxLogs);
         }
 
         // 저장

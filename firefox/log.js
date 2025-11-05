@@ -6,6 +6,22 @@ document.addEventListener('DOMContentLoaded', function() {
     loadLogs();
     setupFilters();
     setupThemeToggle();
+    // 최대 저장치 UI 초기화
+    browser.storage.sync.get('maxLogs').then((r) => {
+        const input = document.getElementById('maxLogsInput');
+        if (input) input.value = (r && typeof r.maxLogs==='number' && r.maxLogs>0) ? r.maxLogs : 10000;
+    }).catch(()=>{});
+    const saveMaxBtn = document.getElementById('saveMaxLogsBtn');
+    if (saveMaxBtn) {
+        saveMaxBtn.addEventListener('click', () => {
+            const input = document.getElementById('maxLogsInput');
+            const val = Number(input && input.value);
+            const maxLogs = Number.isFinite(val) && val>0 ? Math.floor(val) : 10000;
+            browser.storage.sync.set({ maxLogs }).then(()=>{
+                input.value = maxLogs;
+            }).catch(()=>{});
+        });
+    }
     // 예측 별도 집계 설정 로드
     browser.storage.sync.get('splitPredictionStats').then((r) => {
         const cb = document.getElementById('splitPredictionStats');

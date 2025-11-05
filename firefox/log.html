@@ -184,6 +184,14 @@
             align-items: center;
         }
 
+        .filters-right {
+            margin-left: auto;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
         .filter-group {
             display: flex;
             align-items: center;
@@ -217,7 +225,6 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-left: auto;
         }
 
         .import-export-btn {
@@ -816,7 +823,8 @@
         </div>
 
         <div class="filters">
-            <div class="filter-group">
+            <div class="filters-row">
+                <div class="filter-group">
                 <label for="methodFilter">방식:</label>
                 <select id="methodFilter">
                     <option value="">전체</option>
@@ -824,12 +832,12 @@
                     <option value="view">시청</option>
                     <option value="others">기타</option>
                 </select>
-            </div>
-            <div class="filter-group">
+                </div>
+                <div class="filter-group">
                 <label for="channelFilter">채널:</label>
                 <input type="text" id="channelFilter" placeholder="채널명 검색...">
-            </div>
-            <div class="filter-group">
+                </div>
+                <div class="filter-group">
                 <label for="dateFilter">날짜:</label>
                 <select id="dateFilter">
                     <option value="">전체</option>
@@ -837,18 +845,28 @@
                     <option value="week">이번 주</option>
                     <option value="month">이번 달</option>
                 </select>
+                </div>
+                <div class="filter-group">
+                <label for="maxLogsInput">최대 로그 저장 개수</label>
+                <input type="number" id="maxLogsInput" min="100" step="100" placeholder="10000" style="width:100px;">
+                <button class="import-export-btn" id="saveMaxLogsBtn">저장</button>
+                </div>
+                <div class="filters-right">
+                    <div class="filter-group">
+                    <label for="splitPredictionStats">승부예측 별도 집계</label>
+                    <input type="checkbox" id="splitPredictionStats" />
+                    </div>
+                </div>
             </div>
-            <div class="import-export-group">
-                <button class="import-export-btn export" id="exportBtn">📤 내보내기</button>
-                <button class="import-export-btn" id="importBtn">📥 가져오기</button>
-                <input type="file" id="importFile" accept=".json">
+            <div class="filters-row" style="margin-top:10px;">
+                <div class="import-export-group">
+                    <button class="import-export-btn export" id="exportBtn">📤 내보내기</button>
+                    <button class="import-export-btn" id="importBtn">📥 가져오기</button>
+                    <input type="file" id="importFile" accept=".json">
+                </div>
+                <button class="clear-logs" id="clearLogsBtn">로그 삭제</button>
+                <button class="test-add" id="testAddBtn">테스트 추가</button>
             </div>
-            <div class="filter-group" style="margin-left:auto;">
-                <label for="splitPredictionStats">승부예측 별도 집계</label>
-                <input type="checkbox" id="splitPredictionStats" />
-            </div>
-            <button class="clear-logs" id="clearLogsBtn">로그 삭제</button>
-            <button class="test-add" id="testAddBtn">테스트 추가</button>
         </div>
 
         <div class="logs-container">
