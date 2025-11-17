@@ -929,26 +929,12 @@ const CLOCK_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" heigh
 // 다음 파워 획득 시간 계산 (content script용)
 function calculateNextPowerTimeForClock() {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['powerLogs', 'lastPowerAcquisitionTime'], (result) => {
+        chrome.storage.local.get(['powerLogs'], (result) => {
             const logs = result.powerLogs || [];
-            const lastAcquisitionTime = result.lastPowerAcquisitionTime;
             const now = new Date();
             
-            let nextPowerTime;
-            
-            if (lastAcquisitionTime) {
-                // 마지막 획득 시간이 있으면 그 시간부터 1시간 후
-                const lastTime = new Date(lastAcquisitionTime);
-                nextPowerTime = new Date(lastTime.getTime() + 60 * 60 * 1000);
-                
-                // 이미 1시간이 지났으면 현재 시간 기준으로 재계산
-                if (nextPowerTime <= now) {
-                    nextPowerTime = calculateFromLastLogForClock(logs, now);
-                }
-            } else {
-                // 마지막 획득 시간이 없으면 마지막 로그 기준으로 계산
-                nextPowerTime = calculateFromLastLogForClock(logs, now);
-            }
+            // view 타입 로그만 기준으로 계산
+            const nextPowerTime = calculateFromLastLogForClock(logs, now);
             
             resolve(nextPowerTime);
         });
@@ -957,13 +943,16 @@ function calculateNextPowerTimeForClock() {
 
 // 마지막 로그 기준으로 다음 획득 시간 계산 (content script용)
 function calculateFromLastLogForClock(logs, now) {
-    if (logs.length === 0) {
-        // 로그가 없으면 현재 시간부터 1시간 후
+    // view 타입 로그만 필터링
+    const viewLogs = logs.filter(log => log.method === 'view');
+    
+    if (viewLogs.length === 0) {
+        // view 타입 로그가 없으면 현재 시간부터 1시간 후
         return new Date(now.getTime() + 60 * 60 * 1000);
     }
     
-    // 가장 최근 로그 찾기
-    const lastLog = logs[0];
+    // 가장 최근 view 타입 로그 찾기
+    const lastLog = viewLogs[0];
     const lastLogTime = new Date(lastLog.timestamp);
     
     // 현재 시간의 분을 마지막 로그의 분으로 설정
