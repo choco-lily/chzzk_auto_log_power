@@ -99,7 +99,7 @@ function saveLastPowerAcquisitionTime() {
 }
 
 onload = (event) => {
-    chrome.storage.sync.get(["badge", "clockToggle"], (r) => {
+    chrome.storage.sync.get(["badge", "clockToggle", "movingGifProfile"], (r) => {
         if (r.badge == undefined) {
             r.badge = true;
             chrome.storage.sync.set({ badge: true });
@@ -107,6 +107,10 @@ onload = (event) => {
         if (r.clockToggle == undefined) {
             r.clockToggle = false;
             chrome.storage.sync.set({ clockToggle: false });
+        }
+        if (r.movingGifProfile == undefined) {
+            r.movingGifProfile = false;
+            chrome.storage.sync.set({ movingGifProfile: false });
         }
 
         let checkbox = document.getElementById("toggle");
@@ -130,10 +134,8 @@ onload = (event) => {
 
         let clockCheckbox = document.getElementById("clockToggle");
         clockCheckbox.checked = r.clockToggle;
-        clockToggle = r.clockToggle;
         clockCheckbox.addEventListener("change", () => {
             chrome.storage.sync.set({ clockToggle: clockCheckbox.checked });
-            clockToggle = clockCheckbox.checked;
             // 즉시 content script에 변경사항 전달
             chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
                 if (
@@ -144,6 +146,27 @@ onload = (event) => {
                     chrome.tabs.sendMessage(tabs[0].id, {
                         action: "updateClockToggle",
                         clockToggle: clockCheckbox.checked,
+                    });
+                }
+            });
+        });
+
+        let gifCheckbox = document.getElementById("movingGifProfileToggle");
+        gifCheckbox.checked = r.movingGifProfile;
+        gifCheckbox.addEventListener("change", () => {
+            chrome.storage.sync.set({
+                movingGifProfile: gifCheckbox.checked,
+            });
+            // 즉시 content script에 변경사항 전달
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+                if (
+                    tabs[0] &&
+                    tabs[0].url &&
+                    tabs[0].url.includes("chzzk.naver.com")
+                ) {
+                    chrome.tabs.sendMessage(tabs[0].id, {
+                        action: "updateMovingGifProfileToggle",
+                        movingGifProfileToggle: gifCheckbox.checked,
                     });
                 }
             });

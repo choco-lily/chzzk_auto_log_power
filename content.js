@@ -7,8 +7,67 @@ let popupCreateRetryTimer = null; // 배지 클릭 시 팝업 생성 재시도 �
 let popupLayerEscHandler = null; // 팝업 ESC 핸들러 참조 저장
 let badgeToggle = false;
 let clockToggle = false;
+let movingGifProfileToggle = false; // 움직이는 gif 프로필 토글
 let lastViewLogTimestampMs = null; // 최근 view 로그 기록 시각 (메모리)
 let lastClockNode = null; // 시계 UI 노드 참조
+
+// gif 프로필 URL에서 type 파라미터의 "_na" 만 제거
+function normalizeGifProfileUrl(url) {
+    if (!url || typeof url !== "string") return url;
+    try {
+        const u = new URL(url, location.href);
+        const type = u.searchParams.get("type");
+        if (!type || !type.endsWith("_na")) return url;
+        u.searchParams.set("type", type.slice(0, -3)); // "_na" 제거
+        return u.toString();
+    } catch (e) {
+        // URL 파싱이 안 되면 단순 치환은 위험하니 그대로 둔다
+        return url;
+    }
+}
+
+// 문서 내 이미지들에 움직이는 gif 프로필 적용
+function applyMovingGifProfileToDocument(root = document) {
+    if (!movingGifProfileToggle || !root) return;
+    try {
+        const imgs = root.querySelectorAll
+            ? root.querySelectorAll("img[src*='gif?type='], img[src*='.gif?type=']")
+            : [];
+        imgs.forEach((img) => {
+            if (!img || !img.src) return;
+            const newSrc = normalizeGifProfileUrl(img.src);
+            if (newSrc && newSrc !== img.src) {
+                img.src = newSrc;
+            }
+        });
+    } catch (_) {}
+}
+
+// DOM 변경 시에도 신규 이미지에 적용
+let movingGifProfileObserver = null;
+function ensureMovingGifProfileObserver() {
+    if (movingGifProfileObserver || typeof MutationObserver === "undefined") return;
+    movingGifProfileObserver = new MutationObserver((mutations) => {
+        if (!movingGifProfileToggle) return;
+        mutations.forEach((m) => {
+            m.addedNodes &&
+                m.addedNodes.forEach((node) => {
+                    if (!(node instanceof HTMLElement)) return;
+                    if (node.tagName === "IMG") {
+                        applyMovingGifProfileToDocument(node.parentElement || document);
+                    } else {
+                        applyMovingGifProfileToDocument(node);
+                    }
+                });
+        });
+    });
+    try {
+        movingGifProfileObserver.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+        });
+    } catch (_) {}
+}
 
 // 현재 테마가 다크인지 여부 (html 태그에 theme_dark 클래스 존재 여부)
 function isDarkTheme() {
@@ -123,7 +182,7 @@ async function savePowerLog(channelId, amount, method, testAmount = null, extra 
     }
 }
 
-chrome.storage.sync.get(["badge", "clockToggle"], (r) => {
+chrome.storage.sync.get(["badge", "clockToggle", "movingGifProfile"], (r) => {
     if (r.badge == undefined) {
         r.badge = true;
         chrome.storage.sync.set({ badge: true });
@@ -132,8 +191,17 @@ chrome.storage.sync.get(["badge", "clockToggle"], (r) => {
         r.clockToggle = false;
         chrome.storage.sync.set({ clockToggle: false });
     }
+    if (r.movingGifProfile == undefined) {
+        r.movingGifProfile = false;
+        chrome.storage.sync.set({ movingGifProfile: false });
+    }
     badgeToggle = r.badge;
     clockToggle = r.clockToggle;
+    movingGifProfileToggle = !!r.movingGifProfile;
+    if (movingGifProfileToggle) {
+        applyMovingGifProfileToDocument();
+    }
+    ensureMovingGifProfileObserver();
 });
 
 // popup에서 오는 메시지 리스너
@@ -155,6 +223,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         } else if (clockToggle) {
             // 시계가 없고 clockToggle이 true인 경우 생성
             updateClockDisplay();
+        }
+    } else if (request.action === "updateMovingGifProfileToggle") {
+        movingGifProfileToggle = !!request.movingGifProfileToggle;
+        if (movingGifProfileToggle) {
+            applyMovingGifProfileToDocument();
         }
     } else if (request.action === 'fetchPredictionDetail') {
         (async () => {
