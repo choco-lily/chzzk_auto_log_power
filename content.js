@@ -10,6 +10,7 @@ let clockToggle = false;
 let movingGifProfileToggle = false; // 움직이는 gif 프로필 토글
 let lastViewLogTimestampMs = null; // 최근 view 로그 기록 시각 (메모리)
 let lastClockNode = null; // 시계 UI 노드 참조
+let powerSummaryToggle = false; // 통나무 개수 요약 표시 토글
 
 // gif 프로필 URL에서 type 파라미터의 "_na" 만 제거
 function normalizeGifProfileUrl(url) {
@@ -76,6 +77,82 @@ function isDarkTheme() {
     } catch (e) {
         return true;
     }
+}
+
+// 통나무 개수 요약 표시 포맷터
+function formatPowerAmount(amount) {
+    if (amount === null || amount === undefined) return "?";
+    if (typeof amount !== "number" || isNaN(amount)) return String(amount);
+    const safeAmount = Math.floor(amount);
+    if (!powerSummaryToggle) return safeAmount.toLocaleString();
+
+    const normalize = (num) =>
+        String(num).replace(/\.?0+$/, ""); // 소수점 불필요한 0 제거
+
+    if (safeAmount >= 10_000_000) {
+        return `${Math.round(safeAmount / 10_000).toLocaleString()}만`;
+    }
+    if (safeAmount >= 1_000_000) {
+        return `${normalize((safeAmount / 10_000).toFixed(1))}만`;
+    }
+    if (safeAmount >= 10_000) {
+        return `${normalize((safeAmount / 10_000).toFixed(2))}만`;
+    }
+    return safeAmount.toLocaleString();
+}
+
+// 채팅 입력 영역 내 뱃지/시계 삽입 위치 탐색
+function findChatToolTarget() {
+    const toolsDivs = Array.from(document.querySelectorAll("div")).filter((div) =>
+        Array.from(div.classList).some((cls) =>
+            cls.startsWith("live_chatting_input_tools__")
+        )
+    );
+    let target = null;
+    let insertMode = "append"; // append | after
+
+    for (const toolsDiv of toolsDivs) {
+        const btns = Array.from(toolsDiv.querySelectorAll("button"));
+        const donationBtns = btns.filter((b) =>
+            Array.from(b.classList).some((cls) =>
+                cls.startsWith("live_chatting_input_donation_button__")
+            )
+        );
+        if (donationBtns.length > 0) {
+            target = donationBtns[donationBtns.length - 1];
+            insertMode = "after";
+            break;
+        } else {
+            const actionDivs = Array.from(toolsDiv.querySelectorAll("div")).filter(
+                (div) =>
+                    Array.from(div.classList).some((cls) =>
+                        cls.startsWith("live_chatting_input_action__")
+                    )
+            );
+            if (actionDivs.length > 0) {
+                target = actionDivs[actionDivs.length - 1];
+                insertMode = "append";
+                break;
+            }
+        }
+    }
+
+    if (!target) return null;
+    return { target, insertMode };
+}
+
+// 지정된 위치에 요소 삽입
+function insertBadgeElement(element, info) {
+    if (!info || !info.target) return false;
+    if (info.insertMode === "after" && info.target.parentNode) {
+        info.target.parentNode.insertBefore(element, info.target.nextSibling);
+        return true;
+    }
+    if (info.target.appendChild) {
+        info.target.appendChild(element);
+        return true;
+    }
+    return false;
 }
 
 // 테마별 색상 모음
@@ -182,7 +259,9 @@ async function savePowerLog(channelId, amount, method, testAmount = null, extra 
     }
 }
 
-chrome.storage.sync.get(["badge", "clockToggle", "movingGifProfile"], (r) => {
+chrome.storage.sync.get(
+    ["badge", "clockToggle", "movingGifProfile", "powerSummary"],
+    (r) => {
     if (r.badge == undefined) {
         r.badge = true;
         chrome.storage.sync.set({ badge: true });
@@ -195,14 +274,20 @@ chrome.storage.sync.get(["badge", "clockToggle", "movingGifProfile"], (r) => {
         r.movingGifProfile = false;
         chrome.storage.sync.set({ movingGifProfile: false });
     }
+        if (r.powerSummary == undefined) {
+            r.powerSummary = false;
+            chrome.storage.sync.set({ powerSummary: false });
+        }
     badgeToggle = r.badge;
     clockToggle = r.clockToggle;
     movingGifProfileToggle = !!r.movingGifProfile;
+        powerSummaryToggle = !!r.powerSummary;
     if (movingGifProfileToggle) {
         applyMovingGifProfileToDocument();
     }
     ensureMovingGifProfileObserver();
-});
+    }
+);
 
 // popup에서 오는 메시지 리스너
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -229,6 +314,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (movingGifProfileToggle) {
             applyMovingGifProfileToDocument();
         }
+    } else if (request.action === "updatePowerSummaryToggle") {
+        powerSummaryToggle = !!request.powerSummaryToggle;
+        // 즉시 뱃지/시계에 반영
+        updatePowerCountBadge();
+        updateClockDisplay();
     } else if (request.action === 'fetchPredictionDetail') {
         (async () => {
             try {
@@ -602,40 +692,8 @@ function updatePowerCountBadge(amount = cachedPowerAmount, isInactive = false) {
 
 // 뱃지 생성 함수
 function createPowerBadge(amount, isInactive) {
-    const toolsDivs = Array.from(document.querySelectorAll("div")).filter(
-        (div) =>
-            Array.from(div.classList).some((cls) =>
-                cls.startsWith("live_chatting_input_tools__")
-            )
-    );
-    let badgeTarget = null;
-    let donationBtn = null;
-    for (const toolsDiv of toolsDivs) {
-        const btns = Array.from(toolsDiv.querySelectorAll("button"));
-        const donationBtns = btns.filter((b) =>
-            Array.from(b.classList).some((cls) =>
-                cls.startsWith("live_chatting_input_donation_button__")
-            )
-        );
-        if (donationBtns.length > 0) {
-            donationBtn = donationBtns[donationBtns.length - 1];
-            badgeTarget = donationBtn;
-            break;
-        } else {
-            const actionDivs = Array.from(
-                toolsDiv.querySelectorAll("div")
-            ).filter((div) =>
-                Array.from(div.classList).some((cls) =>
-                    cls.startsWith("live_chatting_input_action__")
-                )
-            );
-            if (actionDivs.length > 0) {
-                badgeTarget = actionDivs[actionDivs.length - 1];
-                break;
-            }
-        }
-    }
-    if (!badgeTarget) return;
+    const targetInfo = findChatToolTarget();
+    if (!targetInfo) return;
 
     // 파워 개수 표시 생성 및 삽입
     const badge = document.createElement("button");
@@ -664,9 +722,9 @@ function createPowerBadge(amount, isInactive) {
         badge.style.cursor = "pointer";
         badge.style.background = colors.bg;
     });
-    badge.innerHTML = `${POWER_ICON_SVG}<span style="margin-left:4px;vertical-align:middle;">${
-        amount !== null ? amount : "?"
-    }<\/span>`;
+    badge.innerHTML = `${POWER_ICON_SVG}<span style="margin-left:4px;vertical-align:middle;">${formatPowerAmount(
+        amount
+    )}<\/span>`;
     badge.classList.add("chzzk_power_badge");
     // 라이트 모드에서 아이콘 색상은 텍스트 색상과 동기화
     const svg = badge.querySelector("svg");
@@ -869,7 +927,7 @@ function createPowerBadge(amount, isInactive) {
                   </div>
                   <span style=\"font-weight:bold;font-size:17px;letter-spacing:1px;color:${
                       x.active ? "inherit" : "#666"
-                  };\">${x.amount.toLocaleString()}</span>
+                  };\">${Number(x.amount || 0).toLocaleString()}</span>
                 </div>
               `
                   )
@@ -896,12 +954,9 @@ function createPowerBadge(amount, isInactive) {
         })();
     };
 
-    if (badgeTarget.tagName === "BUTTON") {
-        badgeTarget.parentNode.insertBefore(badge, badgeTarget.nextSibling);
-    } else {
-        badgeTarget.appendChild(badge);
+    if (insertBadgeElement(badge, targetInfo)) {
+        lastPowerNode = badge;
     }
-    lastPowerNode = badge;
 }
 
 // 뱃지 비활성화 상태 업데이트 함수
@@ -1082,7 +1137,8 @@ function createClockBadge(timeText) {
 
     // 파워 뱃지가 있는지 확인하고 그 오른쪽에 시계 배치
     const powerBadge = document.querySelector(".chzzk_power_badge");
-    if (!powerBadge || !powerBadge.parentNode) return;
+    const targetInfo = findChatToolTarget();
+    if (!powerBadge && !targetInfo) return;
 
     // 시계 표시 생성 및 삽입
     const clockBadge = document.createElement("button");
@@ -1120,9 +1176,16 @@ function createClockBadge(timeText) {
         svg.setAttribute("fill", "currentColor");
     }
 
-    // 파워 뱃지 바로 오른쪽에 삽입
-    powerBadge.parentNode.insertBefore(clockBadge, powerBadge.nextSibling);
-    lastClockNode = clockBadge;
+    // 파워 뱃지 바로 오른쪽 혹은 기본 위치에 삽입
+    if (powerBadge && powerBadge.parentNode) {
+        powerBadge.parentNode.insertBefore(clockBadge, powerBadge.nextSibling);
+        lastClockNode = clockBadge;
+        return;
+    }
+
+    if (insertBadgeElement(clockBadge, targetInfo)) {
+        lastClockNode = clockBadge;
+    }
 }
 
 async function getViewPowerAmountBySubscription(channelId) {
