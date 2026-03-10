@@ -794,7 +794,7 @@ function createPowerBadge(amount, isInactive) {
                         x.active ? "inherit" : "#666"
                     };\">${x.channelName}${
                           x.verifiedMark
-                              ? ` <img src='https://ssl.pstatic.net/static/nng/glive/resource/p/static/media/icon_official.a53d1555f8f4796d7862.png' alt='인증' style='width:16px;height:16px;vertical-align:middle;margin-left:2px;'>`
+                              ? ` <img src='https://ssl.pstatic.net/static/nng/glive/image/icon_official_mark.png' alt='인증' style='width:16px;height:16px;vertical-align:middle;margin-left:2px;'>`
                               : ""
                       }</span>
                   </div>

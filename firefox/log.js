@@ -357,7 +357,7 @@ function renderLogs() {
                 <div class="log-content">
                     <div class="channel-name">
                         <a href="https://chzzk.naver.com/${log.channelId}" target="_blank" class="channel-link">
-                            ${log.channelName}${log.verifiedMark ? ' <img src="https://ssl.pstatic.net/static/nng/glive/resource/p/static/media/icon_official.a53d1555f8f4796d7862.png" alt="인증" style="width:16px;height:16px;vertical-align:middle;margin-left:2px;">' : ''}
+                            ${log.channelName}${log.verifiedMark ? ' <img src="https://ssl.pstatic.net/static/nng/glive/image/icon_official_mark.png" alt="인증" style="width:16px;height:16px;vertical-align:middle;margin-left:2px;">' : ''}
                         </a> ${detailsBtn}
                     </div>
                     <div class="log-details">
