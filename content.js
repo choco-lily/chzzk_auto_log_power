@@ -105,7 +105,9 @@ function formatPowerAmount(amount) {
 function findChatToolTarget() {
     const toolsDivs = Array.from(document.querySelectorAll("div")).filter((div) =>
         Array.from(div.classList).some((cls) =>
-            cls.startsWith("live_chatting_input_tools__")
+            cls.startsWith("live_chatting_input_tools__") ||
+            cls === "live_chatting_input_tools" ||
+            cls.includes("_tools_")
         )
     );
     let target = null;
@@ -115,7 +117,8 @@ function findChatToolTarget() {
         const btns = Array.from(toolsDiv.querySelectorAll("button"));
         const donationBtns = btns.filter((b) =>
             Array.from(b.classList).some((cls) =>
-                cls.startsWith("live_chatting_input_donation_button__")
+                cls.startsWith("live_chatting_input_donation_button__") ||
+                cls.includes("_donation_button_")
             )
         );
         if (donationBtns.length > 0) {
@@ -126,7 +129,8 @@ function findChatToolTarget() {
             const actionDivs = Array.from(toolsDiv.querySelectorAll("div")).filter(
                 (div) =>
                     Array.from(div.classList).some((cls) =>
-                        cls.startsWith("live_chatting_input_action__")
+                        cls.startsWith("live_chatting_input_action__") ||
+                        cls.includes("_action_")
                     )
             );
             if (actionDivs.length > 0) {
@@ -134,6 +138,19 @@ function findChatToolTarget() {
                 insertMode = "append";
                 break;
             }
+        }
+    }
+
+    if (!target) {
+        const donationBtns = Array.from(document.querySelectorAll("button")).filter((b) =>
+            Array.from(b.classList).some((cls) =>
+                cls.startsWith("live_chatting_input_donation_button__") ||
+                cls.includes("_donation_button_")
+            )
+        );
+        if (donationBtns.length > 0) {
+            target = donationBtns[donationBtns.length - 1];
+            insertMode = "after";
         }
     }
 
@@ -741,9 +758,13 @@ function createPowerBadge(amount, isInactive) {
         e.stopPropagation();
         // 뱃지 클릭 시 즉시 파워 개수 갱신
         fetchAndUpdatePowerAmount();
-        const existPopup = document.querySelector(
-            ".chzzk_power_popup_layer, .live_chatting_popup_donation_layer__sQ9nX"
-        );
+        const existPopup = document.querySelector(".chzzk_power_popup_layer") || 
+                           Array.from(document.querySelectorAll("div")).find(d => 
+                               Array.from(d.classList).some(cls => 
+                                   cls.startsWith("live_chatting_popup_donation_layer__") ||
+                                   cls.includes("_donation_layer_")
+                               )
+                           );
         if (existPopup) {
             existPopup.parentNode &&
                 existPopup.parentNode.removeChild(existPopup);
@@ -765,9 +786,9 @@ function createPowerBadge(amount, isInactive) {
         }
         (function tryCreatePopup() {
             // 채팅 리스트 wrapper 찾기 (없으면 생길 때까지 재시도)
-            const chatWrapper = document.querySelector(
-                'div[class^="live_chatting_list_wrapper"]'
-            );
+            const chatWrapper = document.querySelector('div[class^="live_chatting_list_wrapper"]') ||
+                                document.querySelector('div[role="log"]') ||
+                                document.querySelector('div[class*="_container_sg7hy_"]');
             if (!chatWrapper) {
                 popupCreateRetryTimer = setTimeout(tryCreatePopup, 1000);
                 return;
@@ -1212,7 +1233,11 @@ async function clickPowerButtonIfExists() {
     if (!channelId) return;
     const btn = Array.from(aside.querySelectorAll("button")).find((b) =>
         Array.from(b.classList).some((cls) =>
-            cls.startsWith("live_chatting_power_button__")
+            cls.startsWith("live_chatting_power_button__") ||
+            cls.includes("_power_button_") ||
+            cls.includes("_chatting_power_button_") ||
+            cls.includes("_live_chatting_power_button_") ||
+            cls.includes("power_button")
         )
     );
     if (btn) {
