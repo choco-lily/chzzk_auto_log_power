@@ -1231,15 +1231,25 @@ async function clickPowerButtonIfExists() {
     if (!aside) return;
     const channelId = getChannelIdFromUrl();
     if (!channelId) return;
-    const btn = Array.from(aside.querySelectorAll("button")).find((b) =>
-        Array.from(b.classList).some((cls) =>
+    const btn = Array.from(aside.querySelectorAll("button")).find((b) => {
+        const text = b.textContent || "";
+        return Array.from(b.classList).some((cls) =>
             cls.startsWith("live_chatting_power_button__") ||
             cls.includes("_power_button_") ||
             cls.includes("_chatting_power_button_") ||
             cls.includes("_live_chatting_power_button_") ||
-            cls.includes("power_button")
-        )
-    );
+            cls.includes("power_button") ||
+            (cls.includes("_button_") && (
+                (text.includes("통나무") && text.includes("받기")) ||
+                (text.includes("파워") && text.includes("받기")) ||
+                (text.includes("1시간") && text.includes("받기"))
+            ))
+        ) || (
+            (text.includes("통나무") && text.includes("받기")) ||
+            (text.includes("파워") && text.includes("받기")) ||
+            (text.includes("1시간") && text.includes("받기"))
+        );
+    });
     if (btn) {
         btn.click();
         console.log(
