@@ -433,6 +433,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                     );
                     await Promise.all(
                         claims.map(async (claim) => {
+                            if (claim.claimType === "WATCH_1_HOUR") return; // WATCH_1_HOUR는 백그라운드 API 호출로 획득하지 않고 화면 버튼 클릭으로만 획득
                             const claimId = claim.claimId;
                             const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
                             try {
@@ -546,6 +547,7 @@ async function fetchAndUpdatePowerAmount() {
             console.log("[치지직 통나무 파워 자동 획득] claims:", claims);
             await Promise.all(
                 claims.map(async (claim) => {
+                    if (claim.claimType === "WATCH_1_HOUR") return; // WATCH_1_HOUR는 백그라운드 API 호출로 획득하지 않고 화면 버튼 클릭으로만 획득
                     const claimId = claim.claimId;
                     const claimType = claim.claimType;
                     const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
@@ -609,6 +611,7 @@ async function fetchAndUpdatePowerAmount() {
         console.log("[치지직 통나무 파워 자동 획득] claims:", claims);
         await Promise.all(
             claims.map(async (claim) => {
+                if (claim.claimType === "WATCH_1_HOUR") return; // WATCH_1_HOUR는 백그라운드 API 호출로 획득하지 않고 화면 버튼 클릭으로만 획득
                 const claimId = claim.claimId;
                 const claimType = claim.claimType;
                 const putUrl = `https://api.chzzk.naver.com/service/v1/channels/${channelId}/log-power/claims/${claimId}`;
